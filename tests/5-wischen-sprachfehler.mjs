@@ -77,6 +77,13 @@ await page.locator('h1').tap();
 await page.waitForTimeout(300);
 ok((await page.locator('#main li.row.swipe-open').count()) === 0, 'Tippen daneben schliesst die Karte');
 
+// 3b. Schneller Tipp direkt nach dem Wischen (unter 350 ms) kommt an
+await swipe('#main li.row:nth-child(2) .row-inner', -140);
+const quickTitle = (await page.locator('#main li.row.swipe-open .row-title').innerText()).trim();
+await page.evaluate(() => { const b = document.querySelector('#main li.row.swipe-open .swipe-del'); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', pointerId: 9 })); b.click(); });
+await page.waitForTimeout(100);
+ok((await page.locator('#main .row-title', { hasText: quickTitle }).count()) === 0, 'Schneller Tipp auf Löschen direkt nach dem Wischen wird ausgeführt');
+
 // 4. Löschen: sofort, ohne Rückgängig
 const countBefore = await page.locator('#main li.row').count();
 await swipe('#main li.row:nth-child(1) .row-inner', -140);
@@ -118,14 +125,19 @@ await page.waitForSelector('[data-action=voice-once]');
 ok((await page.locator('[data-action=voice-local]').count()) === 0, 'Offline-Problem bleibt gemerkt (nach Neuladen)');
 await page.click('[data-action=voice-cancel]');
 
-// 7. Abbruch durch den Browser (online) wird mit Hinweis angezeigt
+// 7. Browser bricht auch online sofort ab → Hinweis auf Tastatur, danach öffnet das Mikrofon die Tastatur
 await page.fill('#capture-input', '');
 await page.evaluate(() => { window.__mode = 'aborted'; });
 await page.click('#main .mic');
 await page.waitForSelector('[data-action=voice-once]');
 await page.click('[data-action=voice-once]');
-await page.waitForFunction(() => document.getElementById('toast').textContent.includes('aborted'));
-ok((await page.locator('#toast').innerText()).includes('Testen'), 'Fehler „aborted“ mit Hinweis auf den Test');
+await page.waitForFunction(() => document.getElementById('toast').textContent.includes('Tastatur'));
+ok((await page.locator('#toast').innerText()).includes('aborted'), 'Abbruch online: Meldung mit Code und Hinweis auf die Tastatur');
+await page.evaluate(() => { window.__starts = 0; });
+await page.locator('#main .mic').tap();
+await page.waitForTimeout(200);
+ok(await page.evaluate(() => document.activeElement?.id === 'capture-input' && window.__starts === 0), 'Danach: Mikrofon öffnet direkt die Tastatur (Feld fokussiert, keine Aufnahme)');
+ok(await page.locator('#modal').isHidden(), 'Dabei kein Dialog');
 
 // 8. Diagnose-Test in den Einstellungen
 await page.goto(URL + '#settings'); await page.waitForSelector('#voice-state');
@@ -140,6 +152,13 @@ await page.evaluate(() => { window.__mode = 'ok'; });
 await page.click('[data-action=voice-test][data-mode=offline]');
 await page.waitForFunction(() => document.getElementById('voice-test-input').value === 'Hallo Welt');
 ok((await page.locator('#voice-log').innerText()).includes('audiostart'), 'Offline-Test erkennt Text, Protokoll mit audiostart');
+ok((await page.locator('#voice-diag').innerText()).includes('öffnet zurzeit die Tastatur'), 'Einstellungen zeigen: Mikrofon nutzt die Tastatur');
+// Varianten-Test: klappt eine Variante, ist die Sperre aufgehoben
+await page.click('[data-action=voice-variants]');
+await page.waitForFunction(() => document.getElementById('voice-log').textContent.includes('Ergebnis:'), null, { timeout: 15000 });
+const vlog = await page.locator('#voice-log').innerText();
+ok(vlog.includes('Variante 5: Sprache de') && vlog.includes('5 von 5'), 'Varianten-Test probiert 5 Einstellungen und fasst zusammen');
+ok(await page.evaluate(() => localStorage.getItem('kopf-frei-voice-online-broken') === null), 'Erfolgreicher Test hebt die Tastatur-Umleitung auf');
 await page.screenshot({ path: SH + '/w2-voice-settings.png', fullPage: true });
 
 // 9. Online erlaubt: Offline-Ausfall wechselt ohne Rückfrage auf online

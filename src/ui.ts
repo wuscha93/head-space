@@ -7,14 +7,14 @@ import * as V from './voice';
 import * as Sync from './sync';
 import { IS_TEST, storageKey } from './env';
 import { seedSample } from './sample';
-import { destroy as destroyDb } from './db';
+import { destroy as destroyDb, allEvents as getAllEvents, getMeta } from './db';
 
 declare const __APP_VERSION__: string;
 declare const __APP_BUILD__: string;
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
-import { Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, project, projColor, today, toClarify, type DueState } from './logic';
+import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, project, projColor, today, toClarify, type DueState } from './logic';
 export { today } from './logic';
 
 // ---------- Hilfsfunktionen ----------
@@ -550,7 +550,9 @@ function viewSettings(): string {
         <div class="actions-row">
           <button type="button" class="btn small" data-action="voice-test" data-mode="online">Online testen</button>
           <button type="button" class="btn small" data-action="voice-test" data-mode="offline">Offline testen</button>
+          <button type="button" class="btn small" data-action="voice-variants">Varianten testen</button>
         </div>
+        ${V.browserBlocked() ? '<p class="hint">Der Mikrofon-Knopf öffnet zurzeit die Tastatur, weil der Browser die Erkennung blockiert hat. Ein erfolgreicher Test hier schaltet das wieder um.</p>' : ''}
         <label class="sr-only" for="voice-test-input">Erkannter Text</label>
         <input id="voice-test-input" readonly placeholder="Hier erscheint der erkannte Text">
         <pre class="voice-log" id="voice-log">${esc(voiceDiagText())}</pre>
@@ -584,6 +586,16 @@ function viewSettings(): string {
         </details>
         <div class="field"><label for="import-pass">Passphrase</label><input id="import-pass" name="pass" type="password" autocomplete="current-password" required></div>
         <button class="btn" type="submit"${busy ? ' disabled' : ''}>Wiederherstellen</button>
+      </form>
+    </section>
+
+    <section class="panel" id="restore">
+      <h2>Zurück auf früheren Stand</h2>
+      <p class="hint">Falls ein Update oder eine Änderung etwas durcheinandergebracht hat. Es wird nichts gelöscht: Die App stellt den alten Stand mit neuen Änderungen wieder her. Auch das lässt sich wieder rückgängig machen.</p>
+      <ul class="restore-list" id="restore-list"><li class="hint">Wird geladen …</li></ul>
+      <form class="inline-form" data-form="restore-custom">
+        <div class="field"><label for="restore-when">Eigener Zeitpunkt</label><input id="restore-when" name="when" type="datetime-local" required></div>
+        <button class="btn" type="submit">Zu diesem Zeitpunkt</button>
       </form>
     </section>
 
@@ -947,6 +959,13 @@ function startVoice(target: string) {
     toast('Dieser Browser kann keine Sprache erkennen. Nutze das Mikrofon auf deiner Bildschirmtastatur.', 'error');
     return;
   }
+  if (V.browserBlocked() && V.lastAvailability() !== 'available') {
+    // Chrome verweigert die Erkennung auf diesem Gerät: Tastatur öffnen (im Tipp, damit sie wirklich aufgeht)
+    const input = document.getElementById(target) as HTMLInputElement | null;
+    input?.focus();
+    toast('Sprich über das Mikrofon deiner Tastatur. Die Spracherkennung des Browsers ist auf diesem Gerät blockiert.');
+    return;
+  }
   const avail = V.lastAvailability();
   // Noch nie geprüft: im Hintergrund nachschauen. Der Dialog passt sich an, sobald das Ergebnis da ist.
   if (avail === null) {
@@ -979,6 +998,7 @@ function beginVoice(target: string, local: boolean) {
       setPlaceholder(placeholder);
       updateMicButtons();
       onVoiceDone?.();
+      if (heard && !local) V.markBrowserBlocked(false); // Online geht wieder: Mikrofon-Knopf normal
       if (diag) return; // Test in den Einstellungen: nur protokollieren
       if (gotText) { document.getElementById(target)?.focus(); return; }
       if (local && !heard) {
@@ -1000,8 +1020,13 @@ function beginVoice(target: string, local: boolean) {
       if (diag) return;
       // Offline ohne Aufnahme abgebrochen: onEnd wechselt still auf online, keine Fehlermeldung
       if (local && !heard) return;
-      const hint = code === 'aborted' ? ' Unter Einstellungen → Spracheingabe → „Testen“ siehst du, wo es hängt.' : '';
-      toast(`${V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.'} (${code})${hint}`, 'error');
+      if (!local && !heard && (code === 'aborted' || code === 'service-not-allowed' || code === 'network')) {
+        // Browser verweigert sofort: ab jetzt direkt die Tastatur anbieten
+        V.markBrowserBlocked();
+        toast(`Der Browser lässt die Spracherkennung hier nicht zu (${code}). Tipp ins Feld und nutze das Mikrofon deiner Tastatur. Ab jetzt öffnet der Mikrofon-Knopf direkt die Tastatur.`, 'error');
+        return;
+      }
+      toast(`${V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.'} (${code})`, 'error');
     },
   });
   if (!ok) toast('Die Spracheingabe konnte nicht starten.', 'error');
@@ -1037,6 +1062,8 @@ function closeSwipe(animate = true) {
 }
 
 function onPointerDown(e: PointerEvent) {
+  // Neue Berührung: der Klick einer vorherigen Wischgeste ist vorbei, dieser Tipp zählt
+  swallowClick = false;
   if (e.pointerType === 'mouse' || modal) return;
   // Finger auf dem Löschen-Knopf: Karte offen lassen, damit der Tipp ankommt
   if ((e.target as HTMLElement).closest('.swipe-del')) return;
@@ -1257,13 +1284,84 @@ export function render() {
     if (f && main.contains(f) && f.value !== v) f.value = v;
   });
   if (keepId) document.getElementById(keepId)?.focus();
-  if (route.view === 'settings') { updatePersistState(); updateVoiceState(); }
+  if (route.view === 'settings') { updatePersistState(); updateVoiceState(); void updateRestorePoints(); }
+}
+
+// ---------- Zurück auf früheren Stand ----------
+
+async function updateRestorePoints() {
+  const el = document.getElementById('restore-list');
+  if (!el) return;
+  const [events, versions, rewinds] = await Promise.all([
+    getAllEvents(), getMeta<{ v: string; at: number }[]>('versionLog'), getMeta<{ at: number; to: number; when?: number }[]>('rewinds'),
+  ]);
+  const points = restorePoints(events, versions ?? [], rewinds ?? []);
+  const list = document.getElementById('restore-list');
+  if (!list) return;
+  list.innerHTML = points.length
+    ? points.map((p) => `<li><button type="button" class="restore-point" data-action="restore-point" data-ts="${p.ts}" data-label="${esc(p.label)}" data-changes="${p.changes}">
+        <span>${esc(p.label)}</span><span class="hint num">${p.changes} ${p.changes === 1 ? 'spätere Änderung' : 'spätere Änderungen'}</span></button></li>`).join('')
+    : '<li class="hint">Noch keine früheren Stände. Sie entstehen mit der Zeit (Tagesende, vor Updates).</li>';
+}
+
+function confirmRewind(ts: number, label: string, changes: number) {
+  modal = {
+    kind: 'confirm',
+    text: `Zurück auf „${label}“? ${changes} spätere ${changes === 1 ? 'Änderung wird' : 'Änderungen werden'} ausgeglichen. Das lässt sich danach wieder rückgängig machen.`,
+    label: 'Zurücksetzen',
+    run: () => { void doRewind(ts); },
+  };
+  renderModal();
+}
+
+async function doRewind(ts: number) {
+  const before = await S.lastEventTs();
+  const n = await S.rewindTo(ts);
+  if (!n) { toast('Es gab nichts zurückzusetzen.'); return; }
+  render();
+  showUndo(`Früherer Stand wiederhergestellt (${n} ${n === 1 ? 'Eintrag' : 'Einträge'})`, () => { void S.rewindTo(before).then(() => { render(); toast('Wieder wie vorher.'); }); });
 }
 
 let voiceDiagOpen = false;
 let voiceEnv: string[] = [];
+let variantLog: string[] = [];
 function voiceDiagText(): string {
+  if (variantLog.length) return [...voiceEnv, '', ...variantLog, ...(V.log.length ? V.log : [])].join('\n');
   return [...voiceEnv, ...(V.log.length ? ['', 'Letzte Aufnahme:', ...V.log] : [])].join('\n');
+}
+
+const VARIANTS: [string, V.Variant][] = [
+  ['Standard', {}],
+  ['Fortlaufend', { continuous: true }],
+  ['Ohne Zwischenergebnisse', { interim: false }],
+  ['Sprache de-CH', { lang: 'de-CH' }],
+  ['Sprache de', { lang: 'de' }],
+];
+
+/** Probiert nacheinander mehrere Einstellungen der Online-Erkennung und protokolliert alles. */
+function runVoiceVariants(i = 0, okCount = 0) {
+  if (i === 0) variantLog = [];
+  if (i >= VARIANTS.length) {
+    variantLog.push('', okCount ? `Ergebnis: ${okCount} von ${VARIANTS.length} Varianten haben etwas aufgenommen.` : 'Ergebnis: Keine Variante kam bis zum Mikrofon (audiostart).');
+    if (okCount) V.markBrowserBlocked(false);
+    refreshVoiceLog();
+    return;
+  }
+  const [name, variant] = VARIANTS[i];
+  if (i > 0) variantLog.push(...V.log);
+  variantLog.push('', `— Variante ${i + 1}: ${name} —`);
+  const input = document.getElementById('voice-test-input') as HTMLInputElement | null;
+  if (input) input.value = '';
+  const ok = V.start('voice-test-input', false, {
+    onText: (t) => { const el = document.getElementById('voice-test-input') as HTMLInputElement | null; if (el) el.value = t; },
+    onError: () => {},
+    onEnd: (_g, _e, heard) => {
+      refreshVoiceLog();
+      setTimeout(() => runVoiceVariants(i + 1, okCount + (heard ? 1 : 0)), 400);
+    },
+  }, variant);
+  if (!ok) setTimeout(() => runVoiceVariants(i + 1, okCount), 100);
+  refreshVoiceLog();
 }
 function refreshVoiceLog() {
   const el = document.getElementById('voice-log');
@@ -1434,6 +1532,7 @@ function onClick(e: MouseEvent) {
     case 'close': modal = null; renderModal(); break;
     case 'voice': startVoice(el.dataset.target!); break;
     case 'theme': setTheme(el.dataset.value as Theme); break;
+    case 'restore-point': confirmRewind(Number(el.dataset.ts), el.dataset.label ?? '', Number(el.dataset.changes)); break;
     case 'sample-add': if (IS_TEST) { seedSample(); toast('Beispieldaten hinzugefügt.'); } break;
     case 'test-reset':
       if (!IS_TEST) break;
@@ -1455,7 +1554,14 @@ function onClick(e: MouseEvent) {
       break;
     }
     case 'voice-check': probeNow = true; void updateVoiceState(); break;
+    case 'voice-variants': {
+      voiceDiagOpen = true;
+      void V.environment().then((e) => { voiceEnv = e; refreshVoiceLog(); });
+      runVoiceVariants();
+      break;
+    }
     case 'voice-test': {
+      variantLog = [];
       // Eigener Knopf = ausdrückliche Zustimmung für diesen einen Test
       voiceDiagOpen = true;
       const offline = el.dataset.mode === 'offline';
@@ -1589,6 +1695,16 @@ async function onSubmit(e: SubmitEvent) {
     case 'clarify-delegate':
       finishClarify({ list: 'waiting', waitingFor: val(form, 'who'), tickler: val(form, 'tickler') || null, projectId: val(form, 'projectId') || null, due: val(form, 'due') || null }, 'Zu „Warten auf“ hinzugefügt.');
       break;
+    case 'restore-custom': {
+      const v = val(form, 'when');
+      const ts = new Date(v).getTime();
+      if (!v || Number.isNaN(ts)) return;
+      if (ts >= Date.now()) { toast('Wähl einen Zeitpunkt in der Vergangenheit.', 'error'); return; }
+      const after = (await getAllEvents()).filter((e) => e.ts > ts).length;
+      if (!after) { toast('Seit diesem Zeitpunkt hat sich nichts geändert.'); return; }
+      confirmRewind(ts + 59_999, new Date(ts).toLocaleString('de-CH', { dateStyle: 'medium', timeStyle: 'short' }), after);
+      break;
+    }
     case 'sync-probe': {
       const owner = val(form, 'owner'), repo = val(form, 'repo'), token = val(form, 'token');
       syncDraft = { owner, repo, token };

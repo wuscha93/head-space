@@ -93,3 +93,36 @@ export function initials(title: string): string {
   return words.slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }
 
+
+
+// ---------- Wiederherstellungspunkte ----------
+
+export interface RestorePoint { ts: number; label: string; kind: 'update' | 'day' | 'rewind'; changes: number }
+
+const fmtWhen = (ts: number) => new Date(ts).toLocaleString('de-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Sinnvolle Zeitpunkte zum Zurückkehren: vor jedem Update, jeweils Tagesende der letzten 7 Tage
+ * und vor jedem früheren Zurücksetzen. Nur Punkte, nach denen sich etwas geändert hat. Neueste zuerst.
+ */
+export function restorePoints(
+  events: { ts: number }[],
+  versionLog: { v: string; at: number }[],
+  rewinds: { at: number; to: number; when?: number }[],
+  now = Date.now(),
+): RestorePoint[] {
+  const tss = events.map((e) => e.ts).sort((a, b) => a - b);
+  const after = (t: number) => { let lo = 0, hi = tss.length; while (lo < hi) { const m = (lo + hi) >> 1; if (tss[m] <= t) lo = m + 1; else hi = m; } return tss.length - lo; };
+  const out: RestorePoint[] = [];
+  for (const v of versionLog.slice(1)) out.push({ ts: v.at - 1, label: `Vor dem Update auf Version ${v.v} (${fmtWhen(v.at)})`, kind: 'update', changes: 0 });
+  for (const r of rewinds) out.push({ ts: r.at - 1, label: `Vor dem Zurücksetzen am ${fmtWhen(r.when ?? r.at)}`, kind: 'rewind', changes: 0 });
+  const d = new Date(now);
+  for (let i = 1; out.filter((p) => p.kind === 'day').length < 7 && i <= 60; i++) {
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() - i, 23, 59, 59, 999).getTime();
+    if (after(end) > 0 && tss.length && tss[0] <= end) {
+      out.push({ ts: end, label: `Ende ${new Date(end).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' })}`, kind: 'day', changes: 0 });
+    }
+  }
+  for (const p of out) p.changes = after(p.ts);
+  return out.filter((p) => p.changes > 0).sort((a, b) => b.ts - a.ts);
+}

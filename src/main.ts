@@ -1,5 +1,5 @@
-import { init, whenSaved } from './store';
-import { applyTheme, mount, offerUpdate } from './ui';
+import { init, recordVersion, whenSaved } from './store';
+import { APP_VERSION, applyTheme, mount, offerUpdate } from './ui';
 import { requestPersistence, setOnBlocked } from './db';
 import { initSync } from './sync';
 import { IS_TEST } from './env';
@@ -23,6 +23,7 @@ async function start() {
   } catch (err) {
     console.error(err);
   }
+  try { await recordVersion(APP_VERSION); } catch { /* nicht kritisch */ }
   if (IS_TEST) {
     // Test-App deutlich kennzeichnen und beim ersten Start mit Beispieldaten füllen
     document.documentElement.classList.add('env-test');

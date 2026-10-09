@@ -8,7 +8,7 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in die Live-App.
 
-## Funktionen (Version 0.5.1)
+## Funktionen (Version 0.6.0)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
@@ -20,6 +20,7 @@ Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in di
 - **Spracheingabe** offline bevorzugt, sonst online mit Erlaubnis; Probleme werden angezeigt (Einstellungen → Spracheingabe → Letztes Problem)
 - **Karten-Design** in Solarized, Hell/Dunkel/System umschaltbar
 - **Sync** über ein privates GitHub-Repository, Ende-zu-Ende verschlüsselt
+- **Zurück auf früheren Stand**: Einstellungen → Stand vor einem Update, Ende eines Tages oder eigener Zeitpunkt. Nichts wird gelöscht, die App gleicht mit neuen Änderungen aus; lässt sich selbst wieder rückgängig machen.
 - **Verschlüsseltes Backup** als Datei
 - **Update-Hinweis**: Neue Versionen werden beim Öffnen erkannt und auf Knopfdruck installiert
 

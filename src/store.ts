@@ -82,35 +82,35 @@ export function normalizeProject(d: Partial<Project> & { id: string }, ts: numbe
   } as Project;
 }
 
-function apply(e: GtdEvent) {
-  try { applyUnsafe(e); } catch (err) { console.warn('Ereignis übersprungen', e?.id, err); }
+function apply(e: GtdEvent, st: State = state) {
+  try { applyUnsafe(e, st); } catch (err) { console.warn('Ereignis übersprungen', e?.id, err); }
 }
 
-function applyUnsafe(e: GtdEvent) {
+function applyUnsafe(e: GtdEvent, st: State) {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   switch (e.type) {
     case 'item.create':
-      if (typeof d.id === 'string') state.items.set(d.id, normalizeItem(d, e.ts));
+      if (typeof d.id === 'string') st.items.set(d.id, normalizeItem(d, e.ts));
       break;
     case 'item.patch': {
-      const it = state.items.get(d.id);
+      const it = st.items.get(d.id);
       if (it) Object.assign(it, d.patch, { updated: e.ts });
       break;
     }
     case 'project.create':
-      if (typeof d.id === 'string') state.projects.set(d.id, normalizeProject(d, e.ts));
+      if (typeof d.id === 'string') st.projects.set(d.id, normalizeProject(d, e.ts));
       break;
     case 'project.patch': {
-      const p = state.projects.get(d.id);
+      const p = st.projects.get(d.id);
       if (p) Object.assign(p, d.patch, { updated: e.ts });
       break;
     }
     case 'context.add':
-      if (!state.contexts.includes(d.name)) state.contexts.push(d.name);
+      if (!st.contexts.includes(d.name)) st.contexts.push(d.name);
       break;
     case 'context.remove':
-      state.contexts = state.contexts.filter((c) => c !== d.name);
+      st.contexts = st.contexts.filter((c) => c !== d.name);
       break;
     default:
       // Ereignis einer neueren App-Version: bleibt gespeichert, wird hier nicht ausgewertet.
@@ -122,7 +122,7 @@ function rebuild(evs: GtdEvent[]) {
   state.items.clear();
   state.projects.clear();
   state.contexts = [];
-  evs.forEach(apply);
+  evs.forEach((e) => apply(e));
   info.eventCount = evs.length;
   lastTs = evs.length ? evs[evs.length - 1].ts : 0;
 }
@@ -238,6 +238,73 @@ export function addContext(name: string): string {
 
 export function removeContext(name: string) {
   emit('context.remove', { name });
+}
+
+// ---------- Zurück auf früheren Stand ----------
+
+/** Feldwerte vergleichen; fehlende Felder (ältere Stände) gelten als null. */
+function diffBack<T extends object>(past: T, cur: T): Partial<T> {
+  const patch: Partial<T> = {};
+  const keys = new Set([...Object.keys(past), ...Object.keys(cur)]) as Set<keyof T>;
+  for (const k of keys) {
+    if (k === 'created' || k === 'updated') continue;
+    const a = past[k] === undefined ? null : past[k];
+    const b = cur[k] === undefined ? null : cur[k];
+    if (JSON.stringify(a) !== JSON.stringify(b)) (patch as Record<string, unknown>)[k as string] = a;
+  }
+  return patch;
+}
+
+/**
+ * Setzt alles auf den Stand zum Zeitpunkt `ts` zurück.
+ * Dabei wird nichts gelöscht oder umgeschrieben: Es werden ganz normale Änderungen angehängt,
+ * die den alten Stand wiederherstellen. So verstehen es alle App-Versionen und der Sync,
+ * und es lässt sich selbst wieder rückgängig machen. Gibt die Zahl geänderter Einträge zurück.
+ */
+export async function rewindTo(ts: number): Promise<number> {
+  await whenSaved();
+  const past: State = { items: new Map(), projects: new Map(), contexts: [] };
+  const all = await db.allEvents();
+  for (const e of all) if (e.ts <= ts) apply(e, past);
+  // Zeitpunkt direkt vor dem Zurücksetzen (letztes Ereignis bisher), damit es sich selbst umkehren lässt
+  const lastBefore = all.length ? all[all.length - 1].ts : 0;
+  let changes = 0;
+  batch(() => {
+    for (const [id, cur] of [...state.items]) {
+      const old = past.items.get(id);
+      if (!old) { if (!cur.deleted) { patchItem(id, { deleted: true }); changes++; } continue; }
+      const patch = diffBack(old, cur);
+      if (Object.keys(patch).length) { patchItem(id, patch); changes++; }
+    }
+    for (const [id, cur] of [...state.projects]) {
+      const old = past.projects.get(id);
+      if (!old) { if (!cur.deleted) { patchProject(id, { deleted: true }); changes++; } continue; }
+      const patch = diffBack(old, cur);
+      if (Object.keys(patch).length) { patchProject(id, patch); changes++; }
+    }
+    for (const c of past.contexts) if (!state.contexts.includes(c)) { emit('context.add', { name: c }); changes++; }
+    for (const c of [...state.contexts]) if (!past.contexts.includes(c)) { removeContext(c); changes++; }
+  });
+  if (changes) {
+    const log = (await db.getMeta<{ at: number; to: number; when?: number }[]>('rewinds')) ?? [];
+    log.push({ at: lastBefore + 1, to: ts, when: Date.now() });
+    await db.setMeta('rewinds', log.slice(-20));
+  }
+  return changes;
+}
+
+/** Merkt sich, wann welche App-Version zum ersten Mal lief (für „Vor dem Update auf …“). */
+export async function lastEventTs(): Promise<number> {
+  await whenSaved();
+  const e = await db.allEvents();
+  return e.length ? e[e.length - 1].ts : 0;
+}
+
+export async function recordVersion(v: string) {
+  const log = (await db.getMeta<{ v: string; at: number }[]>('versionLog')) ?? [];
+  if (log[log.length - 1]?.v === v) return;
+  log.push({ v, at: Date.now() });
+  await db.setMeta('versionLog', log.slice(-20));
 }
 
 // ---------- Verschlüsseltes Backup ----------

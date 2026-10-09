@@ -39,6 +39,13 @@ export function resetLocalBroken() {
   try { localStorage.removeItem(BROKEN_KEY); } catch { /* egal */ }
 }
 
+const ONLINE_BROKEN_KEY = storageKey('kopf-frei-voice-online-broken');
+/** Browser bricht auch die Online-Erkennung sofort ab: Mikrofon-Knopf öffnet dann die Tastatur. */
+export const browserBlocked = (): boolean => { try { return localStorage.getItem(ONLINE_BROKEN_KEY) === '1'; } catch { return false; } };
+export function markBrowserBlocked(on = true) {
+  try { if (on) localStorage.setItem(ONLINE_BROKEN_KEY, '1'); else localStorage.removeItem(ONLINE_BROKEN_KEY); } catch { /* egal */ }
+}
+
 /** Protokoll der letzten Aufnahme (für die Fehlersuche in den Einstellungen). */
 export const log: string[] = [];
 
@@ -93,7 +100,10 @@ export let activeTarget: string | null = null;
  * Startet eine Aufnahme. local = true erzwingt Erkennung auf dem Gerät;
  * kann der Browser das nicht garantieren, startet die Aufnahme gar nicht.
  */
-export function start(target: string, local: boolean, h: Handlers): boolean {
+/** Abweichende Einstellungen für den Varianten-Test in den Einstellungen. */
+export interface Variant { continuous?: boolean; interim?: boolean; lang?: string }
+
+export function start(target: string, local: boolean, h: Handlers, variant: Variant = {}): boolean {
   stop();
   const C = ctor();
   if (!C) return false;
@@ -102,9 +112,9 @@ export function start(target: string, local: boolean, h: Handlers): boolean {
     if (!('processLocally' in rec)) return false;
     rec.processLocally = true;
   }
-  rec.lang = LANG;
-  rec.interimResults = true;
-  rec.continuous = false;
+  rec.lang = variant.lang ?? LANG;
+  rec.interimResults = variant.interim ?? true;
+  rec.continuous = variant.continuous ?? false;
   rec.maxAlternatives = 1;
   let gotText = false;
   let errored = false;
@@ -112,7 +122,7 @@ export function start(target: string, local: boolean, h: Handlers): boolean {
   const t0 = Date.now();
   log.length = 0;
   const note = (what: string) => { log.push(`${String(Date.now() - t0).padStart(5)} ms  ${what}`); };
-  note(`start (${local ? 'offline' : 'online'}, ${LANG})`);
+  note(`start (${local ? 'offline' : 'online'}, ${rec.lang}${rec.continuous ? ', fortlaufend' : ''}${rec.interimResults ? '' : ', ohne Zwischenergebnisse'})`);
   // Alle Zwischenschritte festhalten: zeigt, wo der Browser aufgibt
   for (const ev of ['start', 'audiostart', 'soundstart', 'speechstart', 'speechend', 'soundend', 'audioend', 'nomatch']) {
     rec.addEventListener?.(ev, () => { if (ev === 'audiostart') heard = true; note(ev); });
