@@ -148,7 +148,18 @@ input[type=file] { max-width: 100%; }
 
 /* ---------- Listen ---------- */
 .rows { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.row { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3) var(--s1) var(--s2); border-top: 1px solid var(--line); transition: opacity 0.2s, transform 0.2s; }
+.row { position: relative; overflow: hidden; border-top: 1px solid var(--line); transition: opacity 0.2s, transform 0.2s; }
+.row-inner {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s1) var(--s3) var(--s1) var(--s2); background: var(--surface);
+  transition: transform 0.2s ease-out; touch-action: pan-y;
+}
+/* Löschen-Knopf hinter der Karte, sichtbar nach Wischen nach links */
+.swipe-del {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 88px; z-index: 0; border: 0; cursor: pointer;
+  background: var(--warn); color: #fff; font-weight: 700; font-size: 0.9375rem; visibility: hidden;
+}
+.row.swipe-open .swipe-del, .row:has(.row-inner[style*="translate"]) .swipe-del { visibility: visible; }
 .row:first-child { border-top: 0; }
 .row.completing { opacity: 0; transform: translateX(12px); }
 .row-main {
@@ -160,7 +171,7 @@ input[type=file] { max-width: 100%; }
   overflow-wrap: anywhere; color: var(--ink); line-height: 1.4; align-self: flex-start; max-width: 100%;
 }
 .row-main:hover .row-title { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-.row.flash { animation: flash 1.2s ease-out; }
+.row.flash .row-inner { animation: flash 1.2s ease-out; }
 @keyframes flash { from { background: var(--folder-soft); } }
 
 /* Feste Plätze: Kontext | Fällig | Erinnerung | Projekt und weitere */

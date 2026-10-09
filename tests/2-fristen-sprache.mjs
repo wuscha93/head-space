@@ -6,7 +6,7 @@ const FAKE = `
   class FakeSR {
     constructor() { this.processLocally = false; this.lang = ''; }
     start() {
-      window.__srStarted = { local: this.processLocally, lang: this.lang };
+      window.__srStarted = { local: this.processLocally, lang: this.lang, activation: navigator.userActivation ? navigator.userActivation.isActive : true };
       setTimeout(() => {
         this.onresult && this.onresult({ results: [Object.assign([{ transcript: 'Zahnarzt' }], { isFinal: false })] });
         setTimeout(() => {
@@ -30,12 +30,20 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 await page.goto(URL); await page.waitForSelector('#capture-input');
 const scenario = async (avail, say) => { await page.evaluate((a) => localStorage.setItem('fakeAvail', a), avail); await page.reload(); await page.waitForSelector('#main h1'); await page.evaluate((t) => { window.__say = t; window.__srStarted = null; }, say); };
 
-// A: offline verfügbar → direkt, lokal
+// A: offline verfügbar. Erster Tipp: Prüfung läuft im Hintergrund, Dialog meldet „bereit“
 await scenario('available', 'Zahnarzt anrufen');
 await page.click('#main .mic');
+await page.waitForSelector('[data-action=voice-local]');
+ok(await page.evaluate(() => window.__srStarted === null), 'Erster Tipp: ohne Zustimmung keine Online-Aufnahme');
+await page.click('[data-action=voice-local]');
 await page.waitForFunction(() => document.getElementById('capture-input').value === 'Zahnarzt anrufen');
 ok(await page.evaluate(() => window.__srStarted.local === true && window.__srStarted.lang === 'de-DE'), 'Sprache: offline erkannt, de-DE, Text im Feld');
-ok(await page.locator('#modal').isHidden(), 'Sprache offline: kein Zustimmungsdialog');
+ok(await page.evaluate(() => window.__srStarted.activation === true), 'Aufnahme startet direkt im Tipp (Nutzergeste erhalten)');
+await page.fill('#capture-input', '');
+await page.evaluate(() => { window.__srStarted = null; });
+await page.click('#main .mic');
+await page.waitForFunction(() => document.getElementById('capture-input').value === 'Zahnarzt anrufen');
+ok(await page.locator('#modal').isHidden() && await page.evaluate(() => window.__srStarted.local === true && window.__srStarted.activation === true), 'Zweiter Tipp: sofort offline, kein Dialog');
 await page.click('form[data-form=capture] button[type=submit]');
 
 // B: nur online → Zustimmung nötig
@@ -46,7 +54,7 @@ ok(await page.evaluate(() => window.__srStarted === null), 'Ohne Zustimmung kein
 await page.screenshot({ path: SH + '/v1-consent.png' });
 await page.click('[data-action=voice-once]');
 await page.waitForFunction(() => document.getElementById('capture-input').value === 'Offerte Fenster einholen');
-ok(await page.evaluate(() => window.__srStarted.local === false), 'Nur dieses Mal: online erkannt');
+ok(await page.evaluate(() => window.__srStarted.local === false && window.__srStarted.activation === true), 'Nur dieses Mal: online erkannt, direkt im Tipp gestartet');
 await page.click('form[data-form=capture] button[type=submit]');
 await page.evaluate(() => { window.__srStarted = null; });
 await page.click('#main .mic');

@@ -238,6 +238,17 @@ function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): strin
   </div>`;
 }
 
+/**
+ * Karte mit Wisch-Geste: Inhalt liegt in .row-inner, dahinter der Löschen-Knopf.
+ * Nach links wischen legt den Knopf frei; Tippen löscht endgültig.
+ */
+function card(cls: string, rowId: string, kind: 'item' | 'project', inner: string): string {
+  return `<li class="${cls}" data-row="${rowId}">
+    <div class="row-inner">${inner}</div>
+    <button type="button" class="swipe-del" data-action="swipe-delete" data-kind="${kind}" data-id="${rowId}" tabindex="-1" aria-hidden="true">Löschen</button>
+  </li>`;
+}
+
 function row(it: Item, opts: { check?: boolean; clarify?: boolean; project?: boolean; list?: boolean; restore?: boolean } = {}): string {
   const lead = opts.check
     ? `<button class="check" data-action="complete" data-id="${it.id}" aria-label="Als erledigt markieren"></button>`
@@ -245,7 +256,7 @@ function row(it: Item, opts: { check?: boolean; clarify?: boolean; project?: boo
       ? `<button class="check is-done" data-action="restore" data-id="${it.id}" aria-label="Wiederherstellen" title="Wiederherstellen"></button>`
       : '';
   const p = opts.project !== false ? project(it.projectId) : undefined;
-  return `<li class="row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}" data-row="${it.id}">
+  return card(`row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}`, it.id, 'item', `
     ${lead}
     <span class="row-badge" aria-hidden="true">${p ? esc(initials(p.title)) : ''}</span>
     <div class="row-main" data-action="edit" data-id="${it.id}">
@@ -254,8 +265,7 @@ function row(it: Item, opts: { check?: boolean; clarify?: boolean; project?: boo
       ${meta(it, opts)}
       ${it.list === 'reference' && it.notes ? `<span class="row-notes">${esc(it.notes.slice(0, 160))}</span>` : ''}
     </div>
-    ${opts.clarify ? `<button class="btn small" data-action="clarify" data-id="${it.id}">Klären</button>` : ''}
-  </li>`;
+    ${opts.clarify ? `<button class="btn small" data-action="clarify" data-id="${it.id}">Klären</button>` : ''}`);
 }
 
 /** Projektfarbe: nach Reihenfolge der Erstellung, 7 Farben im Kreis (Rot bleibt für Überfälliges reserviert). */
@@ -272,15 +282,14 @@ function initials(title: string): string {
 
 /** Zeile für ein Projekt: Fällig | Status | Ergebnis */
 function projectRow(p: Project, status: string, icon = false): string {
-  return `<li class="row" data-row="${p.id}">
+  return card(`row ${projColor(p.id)}`, p.id, 'project', `
     ${icon ? '<span class="row-icon" aria-hidden="true">P</span>' : ''}
     <div class="row-main" data-action="open-project" data-id="${p.id}">
       <button type="button" class="row-title" data-action="open-project" data-id="${p.id}">${esc(p.title)}</button>
       <div class="row-meta proj-meta">
         ${dueSlot('project', p.id, p.due)}<span class="slot slot-status">${status}</span><span class="slot slot-rest">${p.outcome ? `<span class="chip muted">${esc(p.outcome.slice(0, 80))}</span>` : ''}</span>
       </div>
-    </div>
-  </li>`;
+    </div>`);
 }
 
 const MIC_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
@@ -456,10 +465,9 @@ function viewSomeday(): string {
   const its = Q.someday();
   const ps = Q.projects('someday');
   return `${head('Irgendwann/Vielleicht', 'Ideen und Wünsche ohne Verpflichtung. Schau sie bei der Wochendurchsicht an.')}
-    ${ps.length ? `<h2 class="section">Projekte</h2><ul class="rows">${ps.map((p) => `<li class="row">
+    ${ps.length ? `<h2 class="section">Projekte</h2><ul class="rows">${ps.map((p) => card(`row ${projColor(p.id)}`, p.id, 'project', `
         <div class="row-main" data-action="open-project" data-id="${p.id}"><button type="button" class="row-title" data-action="open-project" data-id="${p.id}">${esc(p.title)}</button>${p.outcome ? `<span class="row-notes">${esc(p.outcome.slice(0, 80))}</span>` : ''}</div>
-        <button class="btn small" data-action="project-status" data-id="${p.id}" data-status="active">Aktivieren</button>
-      </li>`).join('')}</ul>` : ''}
+        <button class="btn small" data-action="project-status" data-id="${p.id}" data-status="active">Aktivieren</button>`)).join('')}</ul>` : ''}
     ${its.length ? `${ps.length ? '<h2 class="section">Einzelne Ideen</h2>' : ''}${list(its)}` : ''}
     ${!its.length && !ps.length ? empty('Noch leer.', 'Beim Klären kannst du alles, was nicht jetzt dran ist, hierher schieben.') : ''}`;
 }
@@ -478,9 +486,9 @@ function viewDone(): string {
     ${its.length ? list(shown, { restore: true }) : empty('Noch nichts erledigt.', 'Abgehakte Schritte sammeln sich hier.')}
     ${its.length > shown.length ? `<p class="hint">Die letzten ${shown.length} von ${its.length} werden angezeigt.</p>` : ''}
     ${trash.length ? `<h2 class="section">Papierkorb <span class="num">${trash.length}</span></h2>
-      <ul class="rows">${trash.map((i) => `<li class="row is-done">
+      <ul class="rows">${trash.map((i) => card('row is-done', i.id, 'item', `
         <div class="row-main" data-action="edit" data-id="${i.id}"><button type="button" class="row-title" data-action="edit" data-id="${i.id}">${esc(i.title)}</button></div>
-        <button class="btn small" data-action="restore" data-id="${i.id}">Zurückholen</button></li>`).join('')}</ul>
+        <button class="btn small" data-action="restore" data-id="${i.id}">Zurückholen</button>`)).join('')}</ul>
       <div class="actions-row"><button class="btn danger" data-action="empty-trash">Papierkorb leeren</button></div>` : ''}`;
 }
 
@@ -597,6 +605,7 @@ function viewSettings(): string {
       <p class="hint">Tipp auf das Mikrofon neben einem Eingabefeld und sprich. Der Text landet im Feld, du bestätigst mit „Erfassen“.</p>
       <dl class="facts">
         <dt>Erkennung auf dem Gerät</dt><dd id="voice-state">wird geprüft …</dd>
+        ${V.lastIssue.at ? `<dt>Letztes Problem</dt><dd class="mono">${esc(V.lastIssue.code)} · ${esc(V.lastIssue.mode)} · ${new Date(V.lastIssue.at).toLocaleTimeString('de-CH')}</dd>` : ''}
       </dl>
       <label class="toggle" for="voice-cloud">
         <input type="checkbox" id="voice-cloud" ${S.info.voiceCloud ? 'checked' : ''}>
@@ -700,6 +709,12 @@ function renderModal() {
     </form>`;
   else if (modal.kind === 'next-step') html = nextStepHtml(modal.projectId, modal.fromId);
   else if (modal.kind === 'due') html = dueHtml(modal.id, modal.target);
+  else if (modal.kind === 'voice-consent' && V.lastAvailability() === 'available') html = `
+    <div class="sheet">
+      <div class="sheet-head"><h2>Spracheingabe bereit</h2><button type="button" class="link" data-action="voice-cancel">Abbrechen</button></div>
+      <p>Dieses Gerät erkennt Deutsch direkt auf dem Gerät. Deine Stimme verlässt es nicht.</p>
+      <div class="actions-row end"><button class="btn primary" data-action="voice-local">Aufnahme starten</button></div>
+    </div>`;
   else if (modal.kind === 'voice-consent') html = `
     <div class="sheet">
       <div class="sheet-head"><h2>Spracheingabe online?</h2><button type="button" class="link" data-action="voice-cancel">Abbrechen</button></div>
@@ -975,14 +990,27 @@ function updateMicButtons() {
   });
 }
 
-/** Mikrofon-Knopf gedrückt: offline wenn möglich, sonst nur mit Erlaubnis online. */
-async function startVoice(target: string) {
+/**
+ * Mikrofon-Knopf gedrückt: offline wenn möglich, sonst nur mit Erlaubnis online.
+ * Wichtig: Die Aufnahme muss direkt im Tipp starten (ohne vorheriges Warten),
+ * sonst brechen mobile Browser sie sofort wieder ab. Deshalb wird die Offline-
+ * Verfügbarkeit vorab im Hintergrund geprüft und hier nur noch nachgeschaut.
+ */
+function startVoice(target: string) {
   if (V.activeTarget) { V.stop(); return; }
   if (!V.supported()) {
     toast('Dieser Browser kann keine Sprache erkennen. Nutze das Mikrofon auf deiner Bildschirmtastatur.', 'error');
     return;
   }
-  const avail = await V.localAvailability();
+  const avail = V.lastAvailability();
+  // Noch nie geprüft: im Hintergrund nachschauen. Der Dialog passt sich an, sobald das Ergebnis da ist.
+  if (avail === null) {
+    void V.localAvailability().then((a) => {
+      if (modal?.kind !== 'voice-consent') return;
+      if (a === 'downloadable' || a === 'downloading') modal = { kind: 'voice-install', target: modal.target, back: modal.back };
+      renderModal();
+    });
+  }
   if (avail === 'available') { beginVoice(target, true); return; }
   if (avail === 'downloadable' || avail === 'downloading') { modal = { kind: 'voice-install', target, back: modal }; renderModal(); return; }
   if (S.info.voiceCloud) { beginVoice(target, false); return; }
@@ -994,18 +1022,32 @@ function beginVoice(target: string, local: boolean) {
   const input = document.getElementById(target) as HTMLInputElement | null;
   if (!input) return;
   voiceBase = input.value.trim();
+  const placeholder = input.placeholder;
+  const setPlaceholder = (t: string) => { const el = document.getElementById(target) as HTMLInputElement | null; if (el) el.placeholder = t; };
   const ok = V.start(target, local, {
     onText: (text) => {
       const el = document.getElementById(target) as HTMLInputElement | null;
       if (el) el.value = voiceBase ? `${voiceBase} ${text}` : text;
     },
-    onEnd: () => {
+    onEnd: (gotText, errored) => {
+      setPlaceholder(placeholder);
       updateMicButtons();
-      document.getElementById(target)?.focus();
+      if (gotText) { document.getElementById(target)?.focus(); return; }
+      if (local) {
+        // Offline-Erkennung liefert hier nichts: beim nächsten Tipp online versuchen (mit Erlaubnis)
+        V.markLocalBroken();
+        if (!errored) toast('Die Offline-Erkennung hat nichts geliefert. Tipp nochmals aufs Mikrofon, dann wird online erkannt.', 'error');
+      } else if (!errored) {
+        toast('Es wurde nichts erkannt. Tipp aufs Mikrofon und sprich gleich los.', 'error');
+      }
     },
-    onError: (code) => { if (code !== 'aborted') toast(V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.', 'error'); },
+    onError: (code) => {
+      if (code === 'no-speech' || code === 'aborted' || code === 'language-not-supported') { if (local) V.markLocalBroken(); }
+      toast(`${V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.'} (${code})`, 'error');
+    },
   });
   if (!ok) toast('Die Spracheingabe konnte nicht starten.', 'error');
+  else setPlaceholder('Sprich jetzt …');
   updateMicButtons();
 }
 
@@ -1016,6 +1058,63 @@ function resumeVoice(local: boolean) {
   modal = back;
   renderModal();
   beginVoice(target, local);
+}
+
+// ---------- Wischen zum Löschen ----------
+
+const SWIPE_W = 88; // Breite des Löschen-Knopfs in px
+let swipe: { inner: HTMLElement; x0: number; y0: number; base: number; dx: number; active: boolean; pid: number } | null = null;
+let openInner: HTMLElement | null = null;
+let swallowClick = false;
+
+function setOffset(inner: HTMLElement, x: number, animate: boolean) {
+  inner.style.transition = animate ? '' : 'none';
+  inner.style.transform = x ? `translateX(${x}px)` : '';
+  inner.parentElement?.classList.toggle('swipe-open', x < 0);
+}
+
+function closeSwipe(animate = true) {
+  if (openInner) setOffset(openInner, 0, animate);
+  openInner = null;
+}
+
+function onPointerDown(e: PointerEvent) {
+  if (e.pointerType === 'mouse' || modal) return;
+  const inner = (e.target as HTMLElement).closest<HTMLElement>('.row-inner');
+  if (openInner && openInner !== inner) closeSwipe();
+  if (!inner || (e.target as HTMLElement).closest('.due-input')) return;
+  swipe = { inner, x0: e.clientX, y0: e.clientY, base: inner === openInner ? -SWIPE_W : 0, dx: 0, active: false, pid: e.pointerId };
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!swipe || e.pointerId !== swipe.pid) return;
+  const dx = e.clientX - swipe.x0;
+  const dy = e.clientY - swipe.y0;
+  if (!swipe.active) {
+    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // Scrollen
+    if (Math.abs(dx) < 10) return;
+    swipe.active = true;
+  }
+  swipe.dx = dx;
+  const x = Math.max(-SWIPE_W * 1.35, Math.min(0, swipe.base + dx));
+  setOffset(swipe.inner, x, false);
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!swipe || e.pointerId !== swipe.pid) return;
+  const s = swipe;
+  swipe = null;
+  if (!s.active) return;
+  swallowClick = true; // die Geste ist kein Tippen auf die Karte
+  setTimeout(() => { swallowClick = false; }, 350);
+  const x = s.base + s.dx;
+  if (x < -SWIPE_W / 2) { setOffset(s.inner, -SWIPE_W, true); openInner = s.inner; }
+  else { setOffset(s.inner, 0, true); if (openInner === s.inner) openInner = null; }
+}
+
+function onPointerCancel() {
+  if (swipe?.active) setOffset(swipe.inner, swipe.base, true);
+  swipe = null;
 }
 
 // ---------- Rückgängig ----------
@@ -1191,6 +1290,7 @@ export function render() {
     });
   }
   lastRouteKey = routeKey;
+  openInner = null;
   main.innerHTML = views[route.view]();
   keep.forEach((v, id) => {
     const f = document.getElementById(id) as HTMLInputElement | null;
@@ -1283,6 +1383,12 @@ function saveBackupFile() {
 }
 
 function onClick(e: MouseEvent) {
+  if (swallowClick) { swallowClick = false; e.preventDefault(); e.stopPropagation(); return; }
+  if (openInner && !(e.target as HTMLElement).closest('.swipe-del')) {
+    const insideOpen = openInner.contains(e.target as Node);
+    closeSwipe();
+    if (insideOpen) { e.preventDefault(); return; }
+  }
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
   if (!el) return;
   const a = el.dataset.action!;
@@ -1299,6 +1405,24 @@ function onClick(e: MouseEvent) {
       break;
     }
     case 'undo': { const fn = undoFn; hideUndo(); fn?.(); break; }
+    case 'swipe-delete': {
+      closeSwipe(false);
+      if (el.dataset.kind === 'project') {
+        const pr = project(id);
+        // Aufgaben des Projekts bleiben als Einzelaufgaben erhalten
+        S.batch(() => {
+          for (const it of all()) if (it.projectId === id) S.patchItem(it.id, { projectId: null });
+          S.patchProject(id, { deleted: true, title: '', outcome: '' });
+        });
+        toast(`Projekt gelöscht${pr ? `: ${short(pr.title)}` : ''}.`);
+        if (route.view === 'project' && route.id === id) go('projects');
+      } else {
+        const it = S.state.items.get(id);
+        S.patchItem(id, { deleted: true, title: '', notes: '' });
+        toast(`Gelöscht${it ? `: ${short(it.title)}` : ''}.`);
+      }
+      break;
+    }
     case 'due-pick': openDuePicker(el); break;
     case 'due-quick':
     case 'due-clear':
@@ -1331,7 +1455,7 @@ function onClick(e: MouseEvent) {
       break;
     case 'confirm': if (modal?.kind === 'confirm') { const run = modal.run; modal = null; renderModal(); run(); } break;
     case 'close': modal = null; renderModal(); break;
-    case 'voice': void startVoice(el.dataset.target!); break;
+    case 'voice': startVoice(el.dataset.target!); break;
     case 'theme': setTheme(el.dataset.value as Theme); break;
     case 'sync-now': void Sync.syncNow(); break;
     case 'sync-back': syncSetup = null; render(); break;
@@ -1344,9 +1468,10 @@ function onClick(e: MouseEvent) {
     case 'voice-check': probeNow = true; void updateVoiceState(); break;
     case 'voice-capture':
       modal = { kind: 'capture' }; renderModal();
-      void startVoice('quick-input');
+      startVoice('quick-input');
       break;
     case 'voice-once': resumeVoice(false); break;
+    case 'voice-local': resumeVoice(true); break;
     case 'voice-always': void S.setVoiceCloud(true); resumeVoice(false); break;
     case 'voice-cancel':
       if (modal?.kind === 'voice-consent' || modal?.kind === 'voice-install') { modal = modal.back; renderModal(); }
@@ -1623,7 +1748,11 @@ function onKey(e: KeyboardEvent) {
 
 export function mount() {
   readHash();
-  document.addEventListener('click', onClick);
+  document.addEventListener('click', onClick, true);
+  document.addEventListener('pointerdown', onPointerDown, { passive: true });
+  document.addEventListener('pointermove', onPointerMove, { passive: true });
+  document.addEventListener('pointerup', onPointerUp);
+  document.addEventListener('pointercancel', onPointerCancel);
   document.addEventListener('submit', (e) => { void onSubmit(e as SubmitEvent); });
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);

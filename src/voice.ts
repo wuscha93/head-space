@@ -24,6 +24,11 @@ const probe = {
 };
 let cached: Availability | null = null;
 export const lastAvailability = () => cached;
+/** Offline-Erkennung hat auf diesem Gerät versagt: ab jetzt online erkennen (bis zum Neuladen). */
+export function markLocalBroken() { cached = 'unavailable'; }
+
+/** Letzter Fehler, für die Anzeige in den Einstellungen (Fehlersuche). */
+export const lastIssue = { code: '', mode: '', at: 0 };
 
 /** Kann dieser Browser Deutsch offline (auf dem Gerät) erkennen? */
 export async function localAvailability(): Promise<Availability> {
@@ -60,7 +65,8 @@ export async function installLocal(): Promise<boolean> {
 
 export interface Handlers {
   onText(text: string, final: boolean): void;
-  onEnd(): void;
+  /** gotText: wurde irgendein Text erkannt? errored: kam vorher ein Fehler? */
+  onEnd(gotText: boolean, errored: boolean): void;
   onError(code: string): void;
 }
 
@@ -85,6 +91,8 @@ export function start(target: string, local: boolean, h: Handlers): boolean {
   rec.interimResults = true;
   rec.continuous = false;
   rec.maxAlternatives = 1;
+  let gotText = false;
+  let errored = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rec.onresult = (e: any) => {
     let text = '';
@@ -93,21 +101,29 @@ export function start(target: string, local: boolean, h: Handlers): boolean {
       text += e.results[i][0].transcript;
       if (!e.results[i].isFinal) final = false;
     }
+    if (text.trim()) gotText = true;
     h.onText(text.trim(), final);
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rec.onerror = (e: any) => h.onError(e?.error ?? 'unknown');
+  rec.onerror = (e: any) => {
+    errored = true;
+    const code = e?.error ?? 'unknown';
+    Object.assign(lastIssue, { code, mode: local ? 'offline' : 'online', at: Date.now() });
+    h.onError(code);
+  };
   rec.onend = () => {
     if (current === rec) { current = null; activeTarget = null; }
-    h.onEnd();
+    if (!gotText && !errored) Object.assign(lastIssue, { code: 'ended-without-result', mode: local ? 'offline' : 'online', at: Date.now() });
+    h.onEnd(gotText, errored);
   };
   current = rec;
   activeTarget = target;
   try {
     rec.start();
-  } catch {
+  } catch (err) {
     current = null;
     activeTarget = null;
+    Object.assign(lastIssue, { code: 'start-failed: ' + ((err as Error)?.name ?? ''), mode: local ? 'offline' : 'online', at: Date.now() });
     return false;
   }
   return true;
@@ -125,4 +141,5 @@ export const ERRORS: Record<string, string> = {
   'no-speech': 'Nichts gehört. Tipp nochmals aufs Mikrofon und sprich gleich los.',
   'network': 'Die Spracherkennung dieses Browsers braucht eine Internetverbindung.',
   'language-not-supported': 'Deutsch wird von der Spracherkennung dieses Browsers nicht unterstützt.',
+  'aborted': 'Die Aufnahme wurde vom Browser abgebrochen.',
 };

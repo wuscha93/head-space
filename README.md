@@ -5,7 +5,7 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 App: **https://wuscha93.github.io/head-space/**
 
-## Funktionen (Version 0.4)
+## Funktionen (Version 0.5)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
@@ -13,6 +13,8 @@ App: **https://wuscha93.github.io/head-space/**
 - **Projekte** mit Ziel, Frist und Farbe; beim Erledigen des letzten Schritts fragt die App nach dem nächsten
 - **Fälligkeitsdatum** direkt über das Kalendersymbol, **Wiedervorlage** („Erst ab“, „Nachfassen am“)
 - **Rückgängig** (3 Sekunden) nach Erledigen, Löschen, Verschieben, Klären und Projektstatus
+- **Wischen zum Löschen**: Karte nach links wischen → „Löschen“ (endgültig, ohne Rückgängig). Aufgaben eines gelöschten Projekts bleiben als Einzelaufgaben.
+- **Spracheingabe** offline bevorzugt, sonst online mit Erlaubnis; Probleme werden angezeigt (Einstellungen → Spracheingabe → Letztes Problem)
 - **Karten-Design** in Solarized, Hell/Dunkel/System umschaltbar
 - **Sync** über ein privates GitHub-Repository, Ende-zu-Ende verschlüsselt
 - **Verschlüsseltes Backup** als Datei
