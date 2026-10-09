@@ -38,7 +38,7 @@ let busy = false;
 type Step = 'actionable' | 'not' | 'multi' | 'project' | 'twomin' | 'donow' | 'who' | 'next' | 'delegate';
 type Modal =
   | null
-  | { kind: 'clarify'; id: string; step: Step; hist: Step[]; title: string }
+  | { kind: 'clarify'; id: string; step: Step; hist: Step[]; title: string; series: boolean }
   | { kind: 'edit'; id: string }
   | { kind: 'project'; id: string | null }
   | { kind: 'capture' }
@@ -702,7 +702,8 @@ function renderModal() {
     </div>`;
   root.innerHTML = `<div class="scrim" data-action="close"></div><div class="modal-box" role="dialog" aria-modal="true">${html}</div>`;
   if (V.activeTarget && !document.getElementById(V.activeTarget)) V.stop();
-  const first = root.querySelector<HTMLElement>('[autofocus], input:not([type=hidden]):not([type=checkbox]), button.primary');
+  // Datumsfelder nie automatisch fokussieren: iPad und Android öffnen sonst sofort den Kalender
+  const first = root.querySelector<HTMLElement>('[autofocus], input:not([type=hidden]):not([type=checkbox]):not([type=date]):not([type=datetime-local]), button.primary');
   first?.focus();
 }
 
@@ -794,7 +795,7 @@ function clarifyHtml(m: Extract<Modal, { kind: 'clarify' }>): string {
   return `
     <div class="sheet card">
       <div class="sheet-head">
-        <span class="eyebrow">Klären${pos > 0 ? ` · <span class="num">${pos}</span> von <span class="num">${queue.length}</span>` : ''}</span>
+        <span class="eyebrow">Klären${m.series && pos > 0 ? ` · <span class="num">${pos}</span> von <span class="num">${queue.length}</span>` : ''}</span>
         <button class="link" data-action="close">Schliessen</button>
       </div>
       <label class="sr-only" for="clarify-title">Eintrag</label>
@@ -802,7 +803,7 @@ function clarifyHtml(m: Extract<Modal, { kind: 'clarify' }>): string {
       ${body}
       <div class="sheet-foot">
         ${m.hist.length ? '<button class="link" data-action="step-back">← Zurück</button>' : '<span></span>'}
-        <button class="link" data-action="clarify-skip">Überspringen</button>
+        ${m.series ? '<button class="link" data-action="clarify-skip">Überspringen</button>' : '<span></span>'}
       </div>
     </div>`;
 }
@@ -917,12 +918,16 @@ function projectFormHtml(id: string | null): string {
 
 // ---------- Klär-Ablauf ----------
 
-function startClarify(id?: string) {
+/**
+ * Klären starten. series = true („Klären starten“): danach automatisch der nächste Eintrag.
+ * series = false („Klären“ bei einem Eintrag): nur dieser, danach zurück zur Liste.
+ */
+function startClarify(id?: string, series = !id) {
   const queue = toClarify();
   const target = id ?? queue[0]?.id;
   const it = target ? S.state.items.get(target) : undefined;
   if (!it) { modal = null; renderModal(); toast('Die Inbox ist leer.'); return; }
-  modal = { kind: 'clarify', id: it.id, step: 'actionable', hist: [], title: it.title };
+  modal = { kind: 'clarify', id: it.id, step: 'actionable', hist: [], title: it.title, series };
   renderModal();
 }
 
@@ -932,10 +937,13 @@ function finishClarify(patch: Partial<Item>, message: string, onUndo?: () => voi
   const m = modal;
   const title = m.title.trim() || S.state.items.get(m.id)?.title || '';
   const rest = toClarify().filter((i) => i.id !== m.id);
-  if (rest.length) startClarify(rest[0].id);
-  else { modal = null; renderModal(); go('next'); message = `${message} Inbox leer.`; }
-  // Rückgängig legt den Eintrag zurück in die Inbox
+  const done = !m.series || !rest.length;
+  if (done) { modal = null; renderModal(); }
+  if (m.series && !rest.length) { go('next'); message = `${message} Inbox leer.`; }
+  // Erst speichern (Rückgängig legt den Eintrag zurück in die Inbox), dann weiter zum nächsten,
+  // damit der Zähler „x von y“ schon stimmt
   patchWithUndo(m.id, { title, ...patch }, message, onUndo);
+  if (!done) startClarify(rest[0].id, true);
 }
 
 // ---------- Spracheingabe ----------
@@ -1637,7 +1645,7 @@ function onClick(e: MouseEvent) {
       const q = toClarify();
       const idx = q.findIndex((i) => i.id === (modal as { id: string }).id);
       const nxt = q[idx + 1] ?? null;
-      if (nxt) startClarify(nxt.id); else { modal = null; renderModal(); }
+      if (nxt) startClarify(nxt.id, true); else { modal = null; renderModal(); }
       break;
     }
     case 'clarify-trash': finishClarify({ list: 'trash', prevList: 'inbox', tickler: null }, 'Weggeworfen.'); break;
