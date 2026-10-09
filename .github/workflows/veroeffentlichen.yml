@@ -83,6 +83,8 @@ jobs:
 
   deploy:
     needs: build
+    # always(): sonst überspringt GitHub diesen Schritt, wenn „test“ (bei nur_bauen) übersprungen wurde
+    if: ${{ always() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
