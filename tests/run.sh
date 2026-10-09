@@ -20,7 +20,14 @@ for t in tests/[0-9]-*.mjs; do
   echo "== $t"
   LOG=$(node "$t" "$OUT" 2>&1) || true
   echo "$LOG" | grep -E "^(ok|FAIL)|FEHLER|Error|bestanden" || true
-  echo "$LOG" | grep -q "Alle Prüfungen bestanden" || FAILED=1
+  if ! echo "$LOG" | grep -q "Alle Prüfungen bestanden"; then
+    FAILED=1
+    # In GitHub Actions als Anmerkung ausgeben (über die API lesbar)
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+      MSG=$(echo "$LOG" | grep -vE "^ok " | grep -v "^\s*$" | tail -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+      echo "::error title=$t::$MSG"
+    fi
+  fi
 done
 echo "Screenshots: $OUT"
 if [ $FAILED -ne 0 ]; then echo "TESTS FEHLGESCHLAGEN"; exit 1; fi
