@@ -1416,7 +1416,12 @@ function onClick(e: MouseEvent) {
         run: () => { void Sync.disconnect().then(() => toast('Sync getrennt.')); } };
       renderModal();
       break;
-    case 'apply-update': updateFn?.(); break;
+    case 'apply-update': {
+      // Erst alles fertig speichern, dann neu starten
+      const fn = updateFn;
+      void S.whenSaved().then(() => fn?.());
+      break;
+    }
     case 'voice-check': probeNow = true; void updateVoiceState(); break;
     case 'voice-test': {
       // Eigener Knopf = ausdrückliche Zustimmung für diesen einen Test

@@ -133,10 +133,22 @@ function emit(type: EventType, data: unknown): GtdEvent {
   const e: GtdEvent = { id: uid(), ts, device: info.device, type, data, v: EVENT_FORMAT };
   apply(e);
   info.eventCount++;
-  db.putEvents([e]).catch((err) => onErr('Speichern fehlgeschlagen: ' + (err?.message ?? err)));
+  track(db.putEvents([e]).catch((err) => onErr('Speichern fehlgeschlagen: ' + (err?.message ?? err))));
   notify();
   localListeners.forEach((fn) => fn());
   return e;
+}
+
+// ---------- Laufende Speichervorgänge ----------
+
+const pendingWrites = new Set<Promise<unknown>>();
+function track(p: Promise<unknown>) {
+  pendingWrites.add(p);
+  void p.finally(() => pendingWrites.delete(p));
+}
+/** Wartet, bis alle Änderungen dauerhaft gespeichert sind (z. B. vor einem Update-Neustart). */
+export async function whenSaved(): Promise<void> {
+  while (pendingWrites.size) await Promise.allSettled([...pendingWrites]);
 }
 
 // ---------- Start ----------

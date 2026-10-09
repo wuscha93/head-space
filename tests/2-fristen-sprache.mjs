@@ -1,4 +1,5 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import { harden } from './helpers.mjs';
 const SH = process.argv[2]; const URL = 'http://localhost:4173/';
 const errors = []; const ok = (c, m) => { if (!c) errors.push('FAIL ' + m); else console.log('ok  ' + m); };
 const FAKE = `
@@ -24,7 +25,7 @@ const FAKE = `
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1180, height: 820 } });
 await ctx.addInitScript(FAKE);
-const page = await ctx.newPage();
+const page = harden(await ctx.newPage());
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 await page.goto(URL); await page.waitForSelector('#capture-input');
@@ -127,7 +128,7 @@ ok(await page.locator('#modal').isHidden(), 'Immer erlaubt: keine Nachfrage mehr
 // D: Browser ohne Spracherkennung
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await ctx2.addInitScript(`delete window.SpeechRecognition; delete window.webkitSpeechRecognition;`);
-const p2 = await ctx2.newPage(); p2.on('pageerror', (e) => errors.push('p2: ' + e.message));
+const p2 = harden(await ctx2.newPage()); p2.on('pageerror', (e) => errors.push('p2: ' + e.message));
 await p2.goto(URL); await p2.waitForSelector('#capture-input');
 await p2.click('#main .mic');
 await p2.waitForSelector('.toast.error.show');
@@ -138,7 +139,7 @@ ok(await p2.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 
 // E: Absturz-Schutz – nach einem Absturz bei der Abfrage wird nicht mehr gefragt
 const ctx3 = await browser.newContext();
 await ctx3.addInitScript(FAKE + `; window.__called = false; window.SpeechRecognition.available = async () => { window.__called = true; return 'available'; }; localStorage.setItem('kopf-frei-voice-probe', 'pending');`);
-const p3 = await ctx3.newPage(); await p3.goto(URL); await p3.waitForSelector('#capture-input');
+const p3 = harden(await ctx3.newPage()); await p3.goto(URL); await p3.waitForSelector('#capture-input');
 await p3.click('#main .mic'); await p3.waitForSelector('[data-action=voice-once]');
 ok(await p3.evaluate(() => window.__called === false), 'Absturz-Schutz: keine erneute Abfrage, direkt Nachfrage');
 await browser.close();

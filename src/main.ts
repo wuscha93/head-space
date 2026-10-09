@@ -1,9 +1,12 @@
-import { init } from './store';
+import { init, whenSaved } from './store';
 import { applyTheme, mount, offerUpdate } from './ui';
 import { requestPersistence, setOnBlocked } from './db';
 import { initSync } from './sync';
 
-declare global { interface Window { KF_NO_SW?: boolean } }
+declare global { interface Window { KF_NO_SW?: boolean; kopfFrei?: { whenSaved: () => Promise<void> } } }
+
+// Für Tests und Fehlersuche: warten, bis alles gespeichert ist
+window.kopfFrei = { whenSaved };
 
 async function start() {
   applyTheme();

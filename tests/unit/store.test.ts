@@ -180,3 +180,12 @@ describe('Verschlüsseltes Backup', () => {
     await expect(S.importBackup('{"format":"anderes"}', 'x')).rejects.toThrow('keine Backup-Datei');
   }, 20_000);
 });
+
+describe('Speichern', () => {
+  test('whenSaved wartet, bis alle Änderungen gespeichert sind', async () => {
+    for (let i = 0; i < 20; i++) S.capture(`s${i}`);
+    await S.whenSaved();
+    const titles = (await db.allEvents()).map((e) => (e.data as any)?.title);
+    for (let i = 0; i < 20; i++) expect(titles).toContain(`s${i}`);
+  });
+});

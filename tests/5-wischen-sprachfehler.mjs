@@ -1,4 +1,5 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import { harden } from './helpers.mjs';
 const SH = process.argv[2]; const URL = 'http://localhost:4173/';
 const errors = []; const ok = (c, m) => { if (!c) errors.push('FAIL ' + m); else console.log('ok  ' + m); };
 
@@ -30,7 +31,7 @@ const FAKE = `
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
 await ctx.addInitScript(FAKE);
-const page = await ctx.newPage();
+const page = harden(await ctx.newPage());
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 await page.goto(URL); await page.waitForSelector('#capture-input');
@@ -144,7 +145,7 @@ await page.screenshot({ path: SH + '/w2-voice-settings.png', fullPage: true });
 // 9. Online erlaubt: Offline-Ausfall wechselt ohne Rückfrage auf online
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 await ctx2.addInitScript(FAKE);
-const p2 = await ctx2.newPage();
+const p2 = harden(await ctx2.newPage());
 p2.on('pageerror', (e) => errors.push('p2: ' + e.message));
 await p2.goto(URL + '#settings'); await p2.waitForSelector('#voice-cloud');
 await p2.check('#voice-cloud'); await p2.waitForTimeout(300);

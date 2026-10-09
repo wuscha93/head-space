@@ -1,10 +1,11 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import { harden } from './helpers.mjs';
 const SH = process.argv[2];
 const URL = 'http://localhost:4173/';
 const errors = [];
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1180, height: 820 } });
-const page = await ctx.newPage();
+const page = harden(await ctx.newPage());
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 const ok = (c, msg) => { if (!c) { errors.push('FAIL ' + msg); } else console.log('ok  ' + msg); };
@@ -101,7 +102,7 @@ await page.screenshot({ path: SH + '/5-settings.png', fullPage: true });
 
 // Frisches Gerät: falsches Passwort, dann richtig
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-const p2 = await ctx2.newPage();
+const p2 = harden(await ctx2.newPage());
 p2.on('pageerror', (e) => errors.push('p2 pageerror: ' + e.message));
 await p2.goto(URL + '#settings'); await p2.waitForSelector('#import-file');
 await p2.setInputFiles('#import-file', SH + '/backup.json');
@@ -120,7 +121,7 @@ await p2.screenshot({ path: SH + '/7-phone-clarify.png' });
 
 // Dark mode
 const ctx3 = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'dark' });
-const p3 = await ctx3.newPage(); await p3.goto(URL); await p3.waitForSelector('#capture-input');
+const p3 = harden(await ctx3.newPage()); await p3.goto(URL); await p3.waitForSelector('#capture-input');
 await p3.click('[data-action=load-examples]'); await p3.waitForTimeout(200);
 await p3.screenshot({ path: SH + '/8-dark-examples.png' });
 const ow = await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

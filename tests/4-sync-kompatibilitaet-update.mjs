@@ -1,4 +1,5 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import { harden } from './helpers.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 const SH = process.argv[2]; const BASE = 'http://localhost:4173/';
 const errors = []; const ok = (c, m) => { if (!c) errors.push('FAIL ' + m); else console.log('ok  ' + m); };
@@ -46,7 +47,7 @@ const browser = await chromium.launch();
 async function device(name, opts = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1180, height: 900 }, serviceWorkers: 'block', ...opts });
   await ctx.route('https://api.github.com/**', fakeGitHub);
-  const page = await ctx.newPage();
+  const page = harden(await ctx.newPage());
   page.on('pageerror', (e) => errors.push(`${name} pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/401|404|409|422/.test(m.text())) errors.push(`${name} console: ${m.text()}`); });
   return page;
@@ -174,7 +175,7 @@ await B.screenshot({ path: SH + '/s3-phone.png' });
 
 // ---------- 5. Update-Hinweis (mit Service Worker) ----------
 const ctxU = await browser.newContext({ viewport: { width: 1180, height: 800 } });
-const U = await ctxU.newPage();
+const U = harden(await ctxU.newPage());
 U.on('pageerror', (e) => errors.push('U pageerror: ' + e.message));
 await U.goto(BASE); await U.waitForSelector('#capture-input');
 await U.evaluate(() => navigator.serviceWorker.ready);

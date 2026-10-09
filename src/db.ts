@@ -80,7 +80,8 @@ export async function allEvents(): Promise<GtdEvent[]> {
 export async function putEvents(evs: GtdEvent[]): Promise<void> {
   const db = await open();
   if (!db) { evs.forEach((e) => memory.events.set(e.id, e)); return; }
-  const tx = db.transaction('events', 'readwrite');
+  // strict: erst als gespeichert melden, wenn es wirklich auf dem Datenträger ist
+  const tx = db.transaction('events', 'readwrite', { durability: 'strict' });
   const store = tx.objectStore('events');
   evs.forEach((e) => store.put(e));
   await done(tx);
