@@ -447,3 +447,6 @@ button.sync-pill:hover { background: var(--sunken); color: var(--ink); }
 .help { background: var(--sunken); border-radius: 8px; padding: var(--s2) var(--s3); }
 .help summary { color: var(--ink); font-weight: 500; }
 .help ol { margin: var(--s2) 0 0; padding-left: 1.25rem; display: grid; gap: var(--s1); font-size: 0.875rem; color: var(--ink); }
+.voice-log { margin: var(--s2) 0 0; padding: var(--s3); background: var(--surface); border-radius: 8px; font: 0.75rem/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; }
+.voice-log:empty { display: none; }
+#voice-test-input { margin-top: var(--s2); }

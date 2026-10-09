@@ -148,3 +148,8 @@ export async function deleteMeta(key: string): Promise<void> {
   tx.objectStore('meta').delete(key);
   await done(tx);
 }
+
+/** Nur für Tests: Arbeitsspeicher-Fallback leeren (ohne IndexedDB). */
+export function resetMemoryForTests() {
+  memory.events.clear(); memory.meta.clear(); memory.synced.clear();
+}

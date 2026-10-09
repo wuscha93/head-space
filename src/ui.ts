@@ -11,91 +11,18 @@ declare const __APP_BUILD__: string;
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
+import { Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, project, projColor, today, toClarify, type DueState } from './logic';
+export { today } from './logic';
 
 // ---------- Hilfsfunktionen ----------
 
-const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-export function today(): string {
-  return isoDate(new Date());
-}
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return isoDate(d);
-}
-type DueState = 'overdue' | 'today' | 'soon' | 'week' | 'later';
-function dueState(iso: string): DueState {
-  const t = today();
-  if (iso < t) return 'overdue';
-  if (iso === t) return 'today';
-  if (iso <= addDays(t, 3)) return 'soon';
-  if (iso <= addDays(t, 7)) return 'week';
-  return 'later';
-}
 function dueChip(iso?: string | null): string {
   if (!iso) return '';
   const s = dueState(iso);
   const label = s === 'today' ? 'heute fällig' : s === 'overdue' ? `überfällig seit ${fmtDate(iso)}` : `fällig ${fmtDate(iso)}`;
   return `<span class="chip due-${s}">${label}</span>`;
 }
-function fmtDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso + 'T00:00:00');
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  return d.toLocaleDateString('de-CH', sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
-}
-function fmtTs(ts: number | null): string {
-  if (!ts) return '';
-  return new Date(ts).toLocaleDateString('de-CH', { day: 'numeric', month: 'short' });
-}
-function daysSince(ts: number): number {
-  return Math.floor((Date.now() - ts) / 86_400_000);
-}
 
-// ---------- Abfragen ----------
-
-const all = () => [...S.state.items.values()].filter((i) => !i.deleted);
-const project = (id: string | null) => (id ? S.state.projects.get(id) : undefined);
-const byCreated = (a: Item, b: Item) => a.created - b.created;
-/** Fällige zuerst (frühestes Datum oben), danach in Erfassungsreihenfolge */
-const byDue = (a: Item, b: Item) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || byCreated(a, b);
-const isOpen = (i: Item) => i.list !== 'done' && i.list !== 'trash';
-
-const Q = {
-  inbox: () => all().filter((i) => i.list === 'inbox').sort(byCreated),
-  resurfaced: () => all().filter((i) => i.list === 'someday' && i.tickler && i.tickler <= today()).sort(byCreated),
-  next: () =>
-    all().filter((i) => {
-      if (i.list !== 'next') return false;
-      if (i.tickler && i.tickler > today()) return false;
-      const p = project(i.projectId);
-      return !p || p.status === 'active';
-    }).sort(byDue),
-  dueItems: () => all().filter((i) => i.due && isOpen(i)).sort(byDue),
-  dueProjects: () => [...S.state.projects.values()].filter((p) => !p.deleted && p.due && (p.status === 'active' || p.status === 'someday'))
-    .sort((a, b) => a.due!.localeCompare(b.due!)),
-  /** Überfällig oder heute fällig: braucht Aufmerksamkeit */
-  urgent: () => Q.dueItems().filter((i) => i.due! <= today()).length + Q.dueProjects().filter((p) => p.due! <= today()).length,
-  waiting: () => all().filter((i) => i.list === 'waiting').sort((a, b) => (a.tickler ?? '9').localeCompare(b.tickler ?? '9') || byDue(a, b)),
-  tickler: () =>
-    all().filter((i) => i.tickler && i.tickler > today() && ['next', 'someday', 'waiting', 'reference'].includes(i.list))
-      .sort((a, b) => a.tickler!.localeCompare(b.tickler!)),
-  someday: () => all().filter((i) => i.list === 'someday' && !i.tickler).sort(byCreated),
-  reference: () => all().filter((i) => i.list === 'reference').sort((a, b) => a.title.localeCompare(b.title, 'de')),
-  done: () => all().filter((i) => i.list === 'done').sort((a, b) => (b.completed ?? 0) - (a.completed ?? 0)),
-  trash: () => all().filter((i) => i.list === 'trash'),
-  projects: (status: Project['status']) =>
-    [...S.state.projects.values()].filter((p) => !p.deleted && p.status === status).sort((a, b) => a.title.localeCompare(b.title, 'de')),
-  projectItems: (pid: string) => all().filter((i) => i.projectId === pid),
-  /** GTD-Regel: Jedes aktive Projekt braucht einen nächsten Schritt (oder wartet auf jemanden). */
-  stalled: (p: Project) => !all().some((i) => i.projectId === p.id && (i.list === 'next' || i.list === 'waiting')),
-};
-
-const toClarify = () => [...Q.resurfaced(), ...Q.inbox()];
 
 // ---------- Zustand der Oberfläche ----------
 
@@ -266,18 +193,6 @@ function row(it: Item, opts: { check?: boolean; clarify?: boolean; project?: boo
       ${it.list === 'reference' && it.notes ? `<span class="row-notes">${esc(it.notes.slice(0, 160))}</span>` : ''}
     </div>
     ${opts.clarify ? `<button class="btn small" data-action="clarify" data-id="${it.id}">Klären</button>` : ''}`);
-}
-
-/** Projektfarbe: nach Reihenfolge der Erstellung, 7 Farben im Kreis (Rot bleibt für Überfälliges reserviert). */
-function projColor(pid: string | null | undefined): string {
-  if (!pid) return 'pc-none';
-  const ordered = [...S.state.projects.values()].sort((a, b) => a.created - b.created);
-  const i = ordered.findIndex((p) => p.id === pid);
-  return i < 0 ? 'pc-none' : `pc-${i % 7}`;
-}
-function initials(title: string): string {
-  const words = title.split(/[\s–-]+/).filter((w) => /^\p{L}/u.test(w));
-  return words.slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }
 
 /** Zeile für ein Projekt: Fällig | Status | Ergebnis */
@@ -611,6 +526,17 @@ function viewSettings(): string {
         <input type="checkbox" id="voice-cloud" ${S.info.voiceCloud ? 'checked' : ''}>
         <span>Online-Erkennung des Browsers erlauben, wenn es auf dem Gerät nicht geht<small>Die Aufnahme geht dann an den Browser-Anbieter (Google, Microsoft oder Apple).</small></span>
       </label>
+      <details class="help" id="voice-diag" ${voiceDiagOpen ? 'open' : ''}>
+        <summary>Spracheingabe testen</summary>
+        <p class="hint">Tipp auf einen Knopf und sag einen kurzen Satz. Darunter erscheint, was der Browser Schritt für Schritt meldet. Bei Problemen: Screenshot davon an Claude schicken.</p>
+        <div class="actions-row">
+          <button type="button" class="btn small" data-action="voice-test" data-mode="online">Online testen</button>
+          <button type="button" class="btn small" data-action="voice-test" data-mode="offline">Offline testen</button>
+        </div>
+        <label class="sr-only" for="voice-test-input">Erkannter Text</label>
+        <input id="voice-test-input" readonly placeholder="Hier erscheint der erkannte Text">
+        <pre class="voice-log" id="voice-log">${esc(voiceDiagText())}</pre>
+      </details>
     </section>
 
     <section class="panel">
@@ -980,6 +906,7 @@ function finishClarify(patch: Partial<Item>, message: string, onUndo?: () => voi
 // ---------- Spracheingabe ----------
 
 let voiceBase = '';
+let onVoiceDone: (() => void) | null = null;
 
 function updateMicButtons() {
   document.querySelectorAll<HTMLButtonElement>('.mic').forEach((b) => {
@@ -1022,6 +949,7 @@ function beginVoice(target: string, local: boolean) {
   const input = document.getElementById(target) as HTMLInputElement | null;
   if (!input) return;
   voiceBase = input.value.trim();
+  const diag = target === 'voice-test-input';
   const placeholder = input.placeholder;
   const setPlaceholder = (t: string) => { const el = document.getElementById(target) as HTMLInputElement | null; if (el) el.placeholder = t; };
   const ok = V.start(target, local, {
@@ -1029,21 +957,33 @@ function beginVoice(target: string, local: boolean) {
       const el = document.getElementById(target) as HTMLInputElement | null;
       if (el) el.value = voiceBase ? `${voiceBase} ${text}` : text;
     },
-    onEnd: (gotText, errored) => {
+    onEnd: (gotText, errored, heard) => {
       setPlaceholder(placeholder);
       updateMicButtons();
+      onVoiceDone?.();
+      if (diag) return; // Test in den Einstellungen: nur protokollieren
       if (gotText) { document.getElementById(target)?.focus(); return; }
-      if (local) {
-        // Offline-Erkennung liefert hier nichts: beim nächsten Tipp online versuchen (mit Erlaubnis)
+      if (local && !heard) {
+        // Offline-Erkennung funktioniert auf diesem Gerät nicht: ab jetzt online (mit Erlaubnis)
         V.markLocalBroken();
-        if (!errored) toast('Die Offline-Erkennung hat nichts geliefert. Tipp nochmals aufs Mikrofon, dann wird online erkannt.', 'error');
-      } else if (!errored) {
-        toast('Es wurde nichts erkannt. Tipp aufs Mikrofon und sprich gleich los.', 'error');
+        if (S.info.voiceCloud) {
+          toast('Offline-Erkennung geht hier nicht. Versuche es online …');
+          beginVoice(target, false);
+        } else {
+          modal = { kind: 'voice-consent', target, back: modal };
+          renderModal();
+        }
+        return;
       }
+      if (errored) return; // Meldung kam schon aus onError
+      toast('Es wurde nichts erkannt. Tipp aufs Mikrofon und sprich gleich los.', 'error');
     },
-    onError: (code) => {
-      if (code === 'no-speech' || code === 'aborted' || code === 'language-not-supported') { if (local) V.markLocalBroken(); }
-      toast(`${V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.'} (${code})`, 'error');
+    onError: (code, heard) => {
+      if (diag) return;
+      // Offline ohne Aufnahme abgebrochen: onEnd wechselt still auf online, keine Fehlermeldung
+      if (local && !heard) return;
+      const hint = code === 'aborted' ? ' Unter Einstellungen → Spracheingabe → „Testen“ siehst du, wo es hängt.' : '';
+      toast(`${V.ERRORS[code] ?? 'Die Spracheingabe hat nicht geklappt.'} (${code})${hint}`, 'error');
     },
   });
   if (!ok) toast('Die Spracheingabe konnte nicht starten.', 'error');
@@ -1080,6 +1020,8 @@ function closeSwipe(animate = true) {
 
 function onPointerDown(e: PointerEvent) {
   if (e.pointerType === 'mouse' || modal) return;
+  // Finger auf dem Löschen-Knopf: Karte offen lassen, damit der Tipp ankommt
+  if ((e.target as HTMLElement).closest('.swipe-del')) return;
   const inner = (e.target as HTMLElement).closest<HTMLElement>('.row-inner');
   if (openInner && openInner !== inner) closeSwipe();
   if (!inner || (e.target as HTMLElement).closest('.due-input')) return;
@@ -1300,6 +1242,16 @@ export function render() {
   if (route.view === 'settings') { updatePersistState(); updateVoiceState(); }
 }
 
+let voiceDiagOpen = false;
+let voiceEnv: string[] = [];
+function voiceDiagText(): string {
+  return [...voiceEnv, ...(V.log.length ? ['', 'Letzte Aufnahme:', ...V.log] : [])].join('\n');
+}
+function refreshVoiceLog() {
+  const el = document.getElementById('voice-log');
+  if (el) el.textContent = voiceDiagText();
+}
+
 let probeNow = false;
 async function updateVoiceState() {
   const el = document.getElementById('voice-state');
@@ -1466,6 +1418,19 @@ function onClick(e: MouseEvent) {
       break;
     case 'apply-update': updateFn?.(); break;
     case 'voice-check': probeNow = true; void updateVoiceState(); break;
+    case 'voice-test': {
+      // Eigener Knopf = ausdrückliche Zustimmung für diesen einen Test
+      voiceDiagOpen = true;
+      const offline = el.dataset.mode === 'offline';
+      if (offline) V.resetLocalBroken();
+      const input = document.getElementById('voice-test-input') as HTMLInputElement | null;
+      if (input) input.value = '';
+      const timer = window.setInterval(refreshVoiceLog, 250);
+      onVoiceDone = () => { window.clearInterval(timer); onVoiceDone = null; void V.environment().then((e) => { voiceEnv = e; refreshVoiceLog(); }); };
+      void V.environment().then((e) => { voiceEnv = e; refreshVoiceLog(); });
+      beginVoice('voice-test-input', offline);
+      break;
+    }
     case 'voice-capture':
       modal = { kind: 'capture' }; renderModal();
       startVoice('quick-input');
@@ -1757,6 +1722,7 @@ export function mount() {
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   window.addEventListener('hashchange', () => { readHash(); render(); });
+  document.addEventListener('toggle', (e) => { if ((e.target as HTMLElement).id === 'voice-diag') voiceDiagOpen = (e.target as HTMLDetailsElement).open; }, true);
   document.addEventListener('keydown', onKey);
   S.onChange(render);
   S.onError((m) => toast(m, 'error'));

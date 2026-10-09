@@ -5,7 +5,7 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 App: **https://wuscha93.github.io/head-space/**
 
-## Funktionen (Version 0.5)
+## Funktionen (Version 0.5.1)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
@@ -44,10 +44,11 @@ Die App lädt keinen fremden Code (keine Abhängigkeiten) und erlaubt per Conten
 
 ```bash
 bun run build.mjs   # baut dist/ und preview/kopf-frei.html
-tests/run.sh        # baut und testet (Playwright + Chromium nötig)
+bun test            # Unit-Tests (Logik, Daten, Kompatibilität, Verschlüsselung, Sync, Sprache)
+tests/run.sh        # alles: Typen, Unit-Tests, End-to-End-Tests (Playwright + Chromium)
 ```
 
-Jeder Push auf `main` baut und veröffentlicht die App automatisch (GitHub Actions → GitHub Pages).
+Jeder Push auf `main` wird zuerst vollständig getestet und nur bei Erfolg veröffentlicht (GitHub Actions → GitHub Pages).
 Geöffnete Apps zeigen danach „Neue Version verfügbar“.
 
 ### Regeln für Erweiterungen (Rückwärtskompatibilität)

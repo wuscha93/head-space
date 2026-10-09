@@ -269,3 +269,10 @@ export async function mergeEvents(incoming: GtdEvent[]): Promise<number> {
 
 /** Für Hinweise ausserhalb der Ereignisse (Sync-Status): Oberfläche neu zeichnen. */
 export const refresh = () => notify();
+
+/** Nur für Tests: Zustand zurücksetzen. */
+export function resetForTests() {
+  state.items.clear(); state.projects.clear(); state.contexts = [];
+  info.eventCount = 0; lastTs = 0;
+  listeners.clear(); localListeners.clear();
+}
