@@ -1,0 +1,20 @@
+<div class="app">
+  <aside class="sidebar" aria-label="Listen">
+    <div class="brand">Kopf frei<small>Getting Things Done</small></div>
+    <nav id="nav"></nav>
+  </aside>
+  <button class="nav-scrim" data-action="toggle-nav" aria-label="Menü schliessen" tabindex="-1"></button>
+  <div class="content">
+    <header class="topbar">
+      <button class="menu-btn" data-action="toggle-nav" aria-label="Menü öffnen">Listen</button>
+      <span class="brand">Kopf frei</span>
+    </header>
+    <div id="banner" class="banner" hidden></div>
+    <main id="main"></main>
+  </div>
+</div>
+<button class="fab fab-mic" data-action="voice-capture" aria-label="Per Sprache erfassen" title="Per Sprache erfassen"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+<button class="fab" data-action="quick-capture" aria-label="Neuen Eintrag erfassen (Taste N)" title="Erfassen (N)">+</button>
+<div id="modal" hidden></div>
+<div id="undo" class="undo" role="status" aria-live="polite" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>

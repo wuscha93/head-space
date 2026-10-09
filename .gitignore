@@ -1,0 +1,5 @@
+dist/
+preview/
+node_modules/
+*.json.bak
+kopf-frei-backup-*.json

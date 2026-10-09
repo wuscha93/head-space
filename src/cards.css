@@ -1,0 +1,21 @@
+/* ---------- Karten: jede Aufgabe eine eigene Karte, Projekt als farbige Überzeile ---------- */
+.pc-0 { --pc: var(--pc0); } .pc-1 { --pc: var(--pc1); } .pc-2 { --pc: var(--pc2); } .pc-3 { --pc: var(--pc3); }
+.pc-4 { --pc: var(--pc4); } .pc-5 { --pc: var(--pc5); } .pc-6 { --pc: var(--pc6); } .pc-none { --pc: var(--line); }
+.row-badge { display: none; }
+.pdot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--pc); flex: none; margin-right: 0.35rem; }
+
+.rows { background: none; border: 0; display: flex; flex-direction: column; gap: 0.5rem; overflow: visible; }
+.rows .row {
+  border: 1px solid var(--line); border-top: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+  padding-block: 0.35rem; box-shadow: var(--card-shadow);
+}
+.row-eyebrow {
+  display: block; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--pc); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-title { font-size: 1.0625rem; font-weight: 500; }
+.rows .row .chip.proj { display: none; }
+.check { border-color: var(--muted); background: transparent; }
+/* Projektfarbe auf hellem Grund etwas dunkler, damit die Überzeile gut lesbar bleibt */
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .row-eyebrow { color: color-mix(in srgb, var(--pc) 82%, var(--ink)); } }
+:root[data-theme="light"] .row-eyebrow { color: color-mix(in srgb, var(--pc) 82%, var(--ink)); }
