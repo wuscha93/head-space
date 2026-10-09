@@ -608,6 +608,11 @@ function viewSettings(): string {
         <dt>Geräte-ID</dt><dd class="mono">${esc(S.info.device.slice(0, 8))}</dd>
         <dt>App-Version</dt><dd class="num">${esc(APP_VERSION)}${APP_BUILD ? ` <span class="hint">(Build ${esc(APP_BUILD)})</span>` : ''}</dd>
       </dl>
+      <div class="actions-row">
+        <button class="btn" data-action="check-update">Nach Updates suchen</button>
+        <button class="btn" data-action="repair-app">App reparieren</button>
+      </div>
+      <p class="hint">„App reparieren“ lädt die App frisch vom Server, falls ein Update hängen geblieben ist. Deine Daten bleiben erhalten.</p>
     </section>`;
 }
 
@@ -1225,6 +1230,10 @@ export function toast(msg: string, kind: 'info' | 'error' = 'info') {
 // ---------- Rendern ----------
 
 let updateFn: (() => void) | null = null;
+
+type AppActions = { checkForUpdate: () => Promise<'update' | 'current' | 'offline' | 'unsupported'>; repairApp: () => Promise<void> };
+let appActions: AppActions | null = null;
+export function setAppActions(a: AppActions) { appActions = a; }
 /** Neue App-Version bereit: Hinweis zeigen, bis der Nutzer aktualisiert. */
 export function offerUpdate(apply: () => void) {
   updateFn = apply;
@@ -1532,6 +1541,20 @@ function onClick(e: MouseEvent) {
     case 'close': modal = null; renderModal(); break;
     case 'voice': startVoice(el.dataset.target!); break;
     case 'theme': setTheme(el.dataset.value as Theme); break;
+    case 'check-update': {
+      if (!appActions) { toast('Updates werden in dieser Ansicht nicht geprüft.'); break; }
+      toast('Suche nach Updates …');
+      void appActions.checkForUpdate().then((r) => {
+        const MSG = { update: 'Neue Version gefunden. Tippe oben auf „Jetzt aktualisieren“.', current: `Du hast die neueste Version (${APP_VERSION}).`, offline: 'Keine Verbindung. Später nochmals versuchen.', unsupported: 'Updates werden in dieser Ansicht nicht geprüft.' };
+        toast(MSG[r]);
+      });
+      break;
+    }
+    case 'repair-app':
+      modal = { kind: 'confirm', text: 'App frisch vom Server laden? Deine Daten, der Sync und die Einstellungen bleiben erhalten.', label: 'Reparieren',
+        run: () => { void (appActions?.repairApp() ?? Promise.resolve(location.reload())); } };
+      renderModal();
+      break;
     case 'restore-point': confirmRewind(Number(el.dataset.ts), el.dataset.label ?? '', Number(el.dataset.changes)); break;
     case 'sample-add': if (IS_TEST) { seedSample(); toast('Beispieldaten hinzugefügt.'); } break;
     case 'test-reset':

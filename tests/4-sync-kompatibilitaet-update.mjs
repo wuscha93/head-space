@@ -184,7 +184,7 @@ ok(await U.evaluate(() => !!navigator.serviceWorker.controller), 'Service Worker
 await U.fill('#capture-input', 'Bleibt nach Update'); await U.keyboard.press('Enter');
 const swPath = new URL('../site/sw.js', import.meta.url).pathname;
 const swOrig = readFileSync(swPath, 'utf8');
-writeFileSync(swPath, swOrig.replace(/const VERSION = '([^']+)'/, "const VERSION = '$1-neu'"));
+writeFileSync(swPath, swOrig + '\n// neue Version (Test)\n');
 try {
   await U.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
   await U.waitForSelector('.banner.update', { timeout: 20000 });
