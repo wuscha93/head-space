@@ -9,8 +9,8 @@ if [ "${1:-}" != "--nur-e2e" ]; then
   echo "== Typen"; (command -v tsc >/dev/null && tsc -p .) || bunx -p typescript@5.8.3 tsc -p .
   echo "== Unit-Tests"; bun test
 fi
-bun run build.mjs
-python3 -m http.server 4173 --directory dist >/dev/null 2>&1 &
+scripts/build-site.sh
+python3 -m http.server 4173 --directory site >/dev/null 2>&1 &
 SERVER=$!
 trap 'kill $SERVER' EXIT
 sleep 1

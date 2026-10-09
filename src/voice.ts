@@ -5,6 +5,8 @@
 // Deutsch auch direkt auf dem Gerät erkennen ("processLocally"). Die App nutzt das,
 // wenn es verfügbar ist, und fragt sonst vorher um Erlaubnis.
 
+import { storageKey } from './env';
+
 export type Availability = 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unknown';
 
 export const LANG = 'de-DE';
@@ -17,12 +19,12 @@ export const supported = (): boolean => !!ctor();
 
 // Die Abfrage ist neu in Chrome. Manche Browser-Versionen hängen oder stürzen dabei ab.
 // Deshalb: Ergebnis merken, mit Zeitlimit fragen, und einen Absturz beim nächsten Start erkennen.
-const PROBE_KEY = 'kopf-frei-voice-probe';
+const PROBE_KEY = storageKey('kopf-frei-voice-probe');
 const probe = {
   get: (): string | null => { try { return localStorage.getItem(PROBE_KEY); } catch { return null; } },
   set: (v: string | null) => { try { if (v === null) localStorage.removeItem(PROBE_KEY); else localStorage.setItem(PROBE_KEY, v); } catch { /* egal */ } },
 };
-const BROKEN_KEY = 'kopf-frei-voice-local-broken';
+const BROKEN_KEY = storageKey('kopf-frei-voice-local-broken');
 const localBrokenStored = (): boolean => { try { return localStorage.getItem(BROKEN_KEY) === '1'; } catch { return false; } };
 let cached: Availability | null = localBrokenStored() ? 'unavailable' : null;
 export const lastAvailability = () => cached;

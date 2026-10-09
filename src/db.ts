@@ -2,8 +2,8 @@
 // Fällt IndexedDB aus (z. B. privates Fenster), läuft die App im Arbeitsspeicher weiter.
 
 import type { GtdEvent } from './types';
+import { DB_NAME } from './env';
 
-const DB_NAME = 'kopf-frei';
 /**
  * Datenbank-Version. Upgrades sind NUR additiv (neue Speicher, nie löschen oder umbauen),
  * damit bestehende Daten bei jedem Update erhalten bleiben.
@@ -153,4 +153,17 @@ export async function deleteMeta(key: string): Promise<void> {
 /** Nur für Tests: Arbeitsspeicher-Fallback leeren (ohne IndexedDB). */
 export function resetMemoryForTests() {
   memory.events.clear(); memory.meta.clear(); memory.synced.clear();
+}
+
+/** Test-App: lokale Datenbank vollständig löschen (danach neu laden). */
+export async function destroy(): Promise<void> {
+  const d = await open();
+  d?.close();
+  dbPromise = null;
+  await new Promise<void>((resolve) => {
+    try {
+      const r = indexedDB.deleteDatabase(DB_NAME);
+      r.onsuccess = r.onerror = r.onblocked = () => resolve();
+    } catch { resolve(); }
+  });
 }

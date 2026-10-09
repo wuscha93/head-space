@@ -5,6 +5,9 @@
 import * as S from './store';
 import * as V from './voice';
 import * as Sync from './sync';
+import { IS_TEST, storageKey } from './env';
+import { seedSample } from './sample';
+import { destroy as destroyDb } from './db';
 
 declare const __APP_VERSION__: string;
 declare const __APP_BUILD__: string;
@@ -424,6 +427,11 @@ const TOKEN_HELP = `<details class="help">
 function syncPanel(): string {
   const st = Sync.status;
   const headTxt = '<h2>Synchronisation über GitHub</h2>';
+  if (IS_TEST) {
+    return `<section class="panel" id="sync">${headTxt}
+      <p class="hint">In der Test-App ist die Synchronisation abgeschaltet. So können Test-Daten nie in dein echtes Daten-Repository gelangen.</p>
+    </section>`;
+  }
   if (st.state === 'off' && !syncSetup) {
     return `<section class="panel" id="sync">
       ${headTxt}
@@ -493,7 +501,17 @@ function viewSettings(): string {
   const theme = getTheme();
   const themeBtn = (t: Theme, label: string) =>
     `<button type="button" class="seg${theme === t ? ' is-active' : ''}" data-action="theme" data-value="${t}" aria-pressed="${theme === t}">${label}</button>`;
+  const testPanel = IS_TEST ? `
+    <section class="panel env-panel">
+      <h2>Test-Umgebung</h2>
+      <p class="hint">Hier probierst du neue Versionen mit Beispieldaten aus. Diese App hat eigene, getrennte Daten und synchronisiert nicht. Deine echte App bleibt unberührt.</p>
+      <div class="actions-row">
+        <button class="btn" data-action="sample-add">Beispieldaten hinzufügen</button>
+        <button class="btn danger" data-action="test-reset">Test-App zurücksetzen</button>
+      </div>
+    </section>` : '';
   return `${head('Einstellungen', 'Darstellung, Kontexte, Synchronisation und Datensicherung.')}
+    ${testPanel}
     <section class="panel">
       <h2>Darstellung</h2>
       <p class="hint">Gilt für dieses Gerät.</p>
@@ -588,7 +606,7 @@ const THEME_COLORS = { light: '#fdf6e3', dark: '#002b36' };
 
 export function getTheme(): Theme {
   try {
-    const t = localStorage.getItem('kf-theme');
+    const t = localStorage.getItem(storageKey('kf-theme'));
     return t === 'light' || t === 'dark' ? t : 'system';
   } catch { return 'system'; }
 }
@@ -603,7 +621,7 @@ export function applyTheme(t: Theme = getTheme()) {
 }
 
 function setTheme(t: Theme) {
-  try { if (t === 'system') localStorage.removeItem('kf-theme'); else localStorage.setItem('kf-theme', t); } catch { /* nur für diese Sitzung */ }
+  try { if (t === 'system') localStorage.removeItem(storageKey('kf-theme')); else localStorage.setItem(storageKey('kf-theme'), t); } catch { /* nur für diese Sitzung */ }
   applyTheme(t);
   render();
 }
@@ -1203,7 +1221,7 @@ function renderBanner() {
   if (!S.info.persistent) {
     el.hidden = false;
     el.innerHTML = '<span>Dieser Browser erlaubt keinen dauerhaften Speicher. Änderungen gehen beim Schliessen verloren.</span>';
-  } else if (hasData && days >= 7 && route.view !== 'settings') {
+  } else if (!IS_TEST && hasData && days >= 7 && route.view !== 'settings') {
     el.hidden = false;
     el.innerHTML = `<span>${S.info.lastBackup ? `Letztes Backup vor ${days} Tagen.` : 'Noch kein Backup erstellt.'}</span><button class="link" data-action="go" data-view="settings">Jetzt sichern</button>`;
   } else {
@@ -1299,6 +1317,13 @@ function readHash() {
 }
 
 // ---------- Beispieldaten ----------
+
+async function resetTestApp() {
+  if (!IS_TEST) return;
+  await S.whenSaved();
+  await destroyDb();
+  location.reload();
+}
 
 function loadExamples() {
   S.batch(() => {
@@ -1409,6 +1434,13 @@ function onClick(e: MouseEvent) {
     case 'close': modal = null; renderModal(); break;
     case 'voice': startVoice(el.dataset.target!); break;
     case 'theme': setTheme(el.dataset.value as Theme); break;
+    case 'sample-add': if (IS_TEST) { seedSample(); toast('Beispieldaten hinzugefügt.'); } break;
+    case 'test-reset':
+      if (!IS_TEST) break;
+      modal = { kind: 'confirm', text: 'Alle Daten der Test-App löschen und mit frischen Beispieldaten neu starten? Deine echte App ist davon nicht betroffen.', label: 'Zurücksetzen',
+        run: () => { void resetTestApp(); } };
+      renderModal();
+      break;
     case 'sync-now': void Sync.syncNow(); break;
     case 'sync-back': syncSetup = null; render(); break;
     case 'sync-disconnect':

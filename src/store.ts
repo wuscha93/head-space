@@ -2,6 +2,7 @@
 // Jede Änderung = ein Ereignis → sofort angewendet und in IndexedDB gespeichert.
 
 import * as db from './db';
+import { ENV, IS_TEST } from './env';
 import { decryptJSON, encryptJSON, type EncryptedFile } from './crypto';
 import type { EventType, GtdEvent, Item, ListName, Project, State } from './types';
 
@@ -241,10 +242,10 @@ export function removeContext(name: string) {
 
 // ---------- Verschlüsseltes Backup ----------
 
-interface BackupPayload { app: 'kopf-frei'; exportedAt: number; device: string; events: GtdEvent[]; }
+interface BackupPayload { app: 'kopf-frei'; exportedAt: number; device: string; events: GtdEvent[]; env?: 'live' | 'test' }
 
 export async function exportBackup(pass: string): Promise<string> {
-  const payload: BackupPayload = { app: 'kopf-frei', exportedAt: Date.now(), device: info.device, events: await db.allEvents() };
+  const payload: BackupPayload = { app: 'kopf-frei', exportedAt: Date.now(), device: info.device, events: await db.allEvents(), env: ENV };
   const file = await encryptJSON(payload, pass);
   info.lastBackup = Date.now();
   await db.setMeta('lastBackup', info.lastBackup);
@@ -262,6 +263,8 @@ export async function importBackup(text: string, pass: string): Promise<{ added:
   try { file = JSON.parse(text); } catch { throw new Error('Die Datei konnte nicht gelesen werden. Ist es ein Backup dieser App?'); }
   const payload = await decryptJSON<BackupPayload>(file, pass);
   if (payload?.app !== 'kopf-frei' || !Array.isArray(payload.events)) throw new Error('Das Backup hat ein unbekanntes Format.');
+  // Test-Daten nie in die echten Daten übernehmen (umgekehrt erlaubt: echte Daten zum Testen kopieren)
+  if (!IS_TEST && payload.env === 'test') throw new Error('Dieses Backup stammt aus der Test-App und wird nicht in deine echten Daten übernommen.');
   const added = await mergeEvents(payload.events);
   if (added) localListeners.forEach((fn) => fn()); // importierte Ereignisse auch hochladen
   return { added };

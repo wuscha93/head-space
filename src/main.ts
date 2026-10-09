@@ -2,6 +2,10 @@ import { init, whenSaved } from './store';
 import { applyTheme, mount, offerUpdate } from './ui';
 import { requestPersistence, setOnBlocked } from './db';
 import { initSync } from './sync';
+import { IS_TEST } from './env';
+import { seedSample } from './sample';
+import { getMeta, setMeta } from './db';
+import { state } from './store';
 
 declare global { interface Window { KF_NO_SW?: boolean; kopfFrei?: { whenSaved: () => Promise<void> } } }
 
@@ -18,6 +22,18 @@ async function start() {
     await init();
   } catch (err) {
     console.error(err);
+  }
+  if (IS_TEST) {
+    // Test-App deutlich kennzeichnen und beim ersten Start mit Beispieldaten füllen
+    document.documentElement.classList.add('env-test');
+    const strip = document.createElement('div');
+    strip.className = 'env-strip';
+    strip.textContent = 'TEST-UMGEBUNG · Beispieldaten · kein Sync';
+    document.body.prepend(strip);
+    if (!(await getMeta('sampleSeeded')) && state.items.size === 0) {
+      seedSample();
+      await setMeta('sampleSeeded', true);
+    }
   }
   mount();
   try { await initSync(); } catch (err) { console.error(err); }

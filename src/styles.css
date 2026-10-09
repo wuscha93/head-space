@@ -450,3 +450,12 @@ button.sync-pill:hover { background: var(--sunken); color: var(--ink); }
 .voice-log { margin: var(--s2) 0 0; padding: var(--s3); background: var(--surface); border-radius: 8px; font: 0.75rem/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; }
 .voice-log:empty { display: none; }
 #voice-test-input { margin-top: var(--s2); }
+
+/* ---------- Test-Umgebung ---------- */
+.env-strip {
+  position: sticky; top: 0; z-index: 35; text-align: center; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em;
+  padding: calc(0.3rem + env(safe-area-inset-top, 0px)) var(--s4) 0.3rem; background: #cb4b16; color: #fdf6e3;
+}
+.env-test .sidebar { top: 1.6rem; height: calc(100dvh - 1.6rem); }
+.env-test .topbar { top: 1.6rem; }
+.env-panel { border-color: #cb4b16; }

@@ -3,7 +3,10 @@
 Persönliche Aufgabenverwaltung nach *Getting Things Done* von David Allen.
 Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen auf dem Gerät; zwischen Geräten werden sie **verschlüsselt** über ein privates GitHub-Repository abgeglichen.
 
-App: **https://wuscha93.github.io/head-space/**
+- **Live-App** (echte Daten): **https://wuscha93.github.io/head-space/**
+- **Test-App** (Beispieldaten, kein Sync): **https://wuscha93.github.io/head-space/test/**
+
+Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in die Live-App.
 
 ## Funktionen (Version 0.5.1)
 
@@ -48,7 +51,8 @@ bun test            # Unit-Tests (Logik, Daten, Kompatibilität, Verschlüsselun
 tests/run.sh        # alles: Typen, Unit-Tests, End-to-End-Tests (Playwright + Chromium)
 ```
 
-Jeder Push auf `main` wird zuerst vollständig getestet und nur bei Erfolg veröffentlicht (GitHub Actions → GitHub Pages).
+Jeder Push wird zuerst vollständig getestet und nur bei Erfolg veröffentlicht (GitHub Actions → GitHub Pages):
+Branch `test` → Test-App, Branch `main` → Live-App. `scripts/build-site.sh` baut beide zusammen (Live nach `site/`, Test nach `site/test/`).
 Geöffnete Apps zeigen danach „Neue Version verfügbar“.
 
 ### Regeln für Erweiterungen (Rückwärtskompatibilität)

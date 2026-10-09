@@ -1,24 +1,37 @@
-# Bei jedem Push auf main: prüfen, testen, bauen und auf GitHub Pages veröffentlichen.
-# Schlägt ein Test fehl, wird NICHTS veröffentlicht (die installierte App bleibt auf der alten Version).
-# Einmalig nötig: Repository → Settings → Pages → Source: „GitHub Actions“.
+# Live-App (Branch main)  → https://wuscha93.github.io/head-space/
+# Test-App (Branch test)  → https://wuscha93.github.io/head-space/test/
+#
+# Bei jedem Push auf main oder test wird der gepushte Stand geprüft und getestet.
+# Schlägt ein Test fehl, wird NICHTS veröffentlicht.
+# Veröffentlicht wird immer aus main (GitHub Pages erlaubt standardmässig nur main):
+#   - Push auf main  → testen, dann ganze Website bauen und veröffentlichen
+#   - Push auf test  → testen, dann diesen Workflow auf main anstossen (ohne erneute Tests)
+# Die Website enthält immer beide Apps: Live aus main, Test aus test.
 name: Veröffentlichen
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
   workflow_dispatch:
+    inputs:
+      nur_bauen:
+        description: 'Tests überspringen (bereits beim Push gelaufen)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   test:
+    if: ${{ !inputs.nur_bauen }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,18 +50,36 @@ jobs:
       - name: End-to-End-Tests
         run: tests/run.sh --nur-e2e
 
+  # Push auf test: nach bestandenen Tests die Veröffentlichung auf main anstossen
+  anstossen:
+    needs: test
+    if: ${{ github.ref == 'refs/heads/test' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run veroeffentlichen.yml --repo "$GITHUB_REPOSITORY" --ref main -f nur_bauen=true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build:
     needs: test
+    if: ${{ always() && github.ref == 'refs/heads/main' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: live
+      - uses: actions/checkout@v4
+        with:
+          ref: test
+          path: test
       - uses: oven-sh/setup-bun@v2
-      - name: Bauen
-        run: bun run build.mjs
+      - name: Website bauen (Live aus main, Test aus test)
+        run: live/scripts/build-site.sh "$PWD/live" "$PWD/test"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: live/site
 
   deploy:
     needs: build

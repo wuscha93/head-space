@@ -15,11 +15,19 @@ Persönliche GTD-App „Kopf frei“ des Nutzers (wuscha93). Sprache: Deutsch (S
 - Logik gehört in `src/logic.ts`, `store.ts`, `sync.ts` usw., nicht in `ui.ts`, damit sie ohne Browser testbar ist.
 - GitHub Actions führt alle Tests vor dem Veröffentlichen aus; schlägt einer fehl, wird nichts veröffentlicht.
 
+## Umgebungen
+- **Live** = Branch `main` → https://wuscha93.github.io/head-space/ (echte Daten, Sync mit `head-space-data`)
+- **Test** = Branch `test` → https://wuscha93.github.io/head-space/test/ (eigene Datenbank, Beispieldaten, **kein Sync**)
+- Beide liegen auf derselben Domain. Alles, was im Browser gespeichert wird, ist über `src/env.ts` getrennt
+  (Datenbankname, localStorage-Schlüssel, Cache-Präfix, Service-Worker-Bereich). Daran nichts ändern, ohne Test 6 zu erweitern.
+
 ## Ablauf
-1. Ändern, dann `tests/run.sh` (Typen + Unit + End-to-End; alle müssen bestehen).
+1. Ändern **auf Branch `test`**, dann `tests/run.sh` (Typen + Unit + End-to-End; alle müssen bestehen).
 2. Version in `package.json` erhöhen (Patch für Korrekturen, Minor für Funktionen).
-3. Commit auf `main` und pushen → GitHub Actions veröffentlicht automatisch auf https://wuscha93.github.io/head-space/.
-4. Die installierte App zeigt danach „Neue Version verfügbar“.
+3. Commit und `git push origin test` → GitHub testet und veröffentlicht nur die **Test-App**.
+4. Nutzer prüft in der Test-App. **Erst wenn er „freigeben“ schreibt:** `test` in `main` übernehmen
+   (`git checkout main && git merge --ff-only test && git push origin main`) → Live-App zeigt „Neue Version verfügbar“.
+5. Nie direkt auf `main` entwickeln (Ausnahme: dringende Korrektur, die der Nutzer ausdrücklich live will).
 
 ## Nie
 - Nutzerdaten, Tokens oder Passphrasen ins Repo oder in Logs.

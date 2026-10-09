@@ -13,6 +13,10 @@ import * as db from './db';
 import * as S from './store';
 import { SYNC_ITERATIONS, b64ToText, randomSalt, seal, syncKeyFromPassphrase, textToB64, unseal, type Sealed } from './crypto';
 import type { GtdEvent } from './types';
+import { IS_TEST } from './env';
+
+/** In der Test-App gibt es keinen Sync: Test-Daten können so nie ins echte Repo gelangen. */
+const TEST_BLOCK = 'In der Test-App ist die Synchronisation abgeschaltet.';
 
 export interface SyncConfig { owner: string; repo: string; token: string; branch: string }
 
@@ -128,6 +132,7 @@ export interface Probe { header: RepoHeader | null; branch: string; isPrivate: b
 
 /** Schritt 1: Repository und Token prüfen. */
 export async function probe(owner: string, repo: string, token: string): Promise<Probe> {
+  if (IS_TEST) throw new GitHubError(TEST_BLOCK, 0);
   const info = await gh<{ private: boolean; default_branch: string; full_name: string; permissions?: { push?: boolean } }>(
     { token }, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
   if (!info.private) throw new GitHubError('Das Repository ist öffentlich. Für deine Daten muss es privat sein.', 0);
@@ -145,6 +150,7 @@ export async function probe(owner: string, repo: string, token: string): Promise
 
 /** Schritt 2: Passphrase festlegen (neues Repo) oder prüfen (bestehendes Repo), dann verbinden. */
 export async function connect(owner: string, repo: string, token: string, pass: string, p: Probe): Promise<void> {
+  if (IS_TEST) throw new GitHubError(TEST_BLOCK, 0);
   const c: SyncConfig = { owner, repo, token, branch: p.branch };
   let header = p.header;
   if (!header) {
@@ -286,6 +292,7 @@ export const isConfigured = () => !!config;
 
 /** Beim Start: gespeicherte Verbindung laden und automatische Auslöser einrichten. */
 export async function initSync() {
+  if (IS_TEST) { status.state = 'off'; return; }
   config = (await db.getMeta<SyncConfig>('syncConfig')) ?? null;
   key = (await db.getMeta<CryptoKey>('syncKey')) ?? null;
   status.last = (await db.getMeta<number>('syncLast')) ?? 0;

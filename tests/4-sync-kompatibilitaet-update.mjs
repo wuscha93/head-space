@@ -182,7 +182,7 @@ await U.evaluate(() => navigator.serviceWorker.ready);
 await U.reload(); await U.waitForSelector('#capture-input');
 ok(await U.evaluate(() => !!navigator.serviceWorker.controller), 'Service Worker aktiv (offline-fähig)');
 await U.fill('#capture-input', 'Bleibt nach Update'); await U.keyboard.press('Enter');
-const swPath = new URL('../dist/sw.js', import.meta.url).pathname;
+const swPath = new URL('../site/sw.js', import.meta.url).pathname;
 const swOrig = readFileSync(swPath, 'utf8');
 writeFileSync(swPath, swOrig.replace(/const VERSION = '([^']+)'/, "const VERSION = '$1-neu'"));
 try {
