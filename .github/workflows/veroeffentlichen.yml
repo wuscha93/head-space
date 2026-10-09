@@ -43,10 +43,21 @@ jobs:
         run: bunx -p typescript@5.8.3 tsc -p .
       - name: Unit-Tests
         run: bun test
+      # Browser zwischenspeichern: spart bei jedem Lauf den Download von Chromium
+      - name: Playwright-Browser aus dem Zwischenspeicher
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-1.56.0-chromium-${{ runner.os }}
       - name: Playwright installieren
         run: |
           npm install --no-save --no-package-lock playwright@1.56.0
-          npx playwright install --with-deps chromium
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
       - name: End-to-End-Tests
         run: tests/run.sh --nur-e2e
 

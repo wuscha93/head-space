@@ -4,7 +4,7 @@
 :root {
   --paper: #fdf6e3; --surface: #fffbf0; --sunken: #eee8d5; --ink: #073642; --muted: #657b83; --line: #e4dcc4;
   --folder: #b58900; --folder-soft: #f3e7c0; --folder-ink: #8a6800; --on-folder: #fdf6e3; --card-rule: #cb4b16;
-  --warn: #dc322f; --warn-soft: #f9dfd6; --ok: #859900; --focus: #268bd2; --scrim: rgba(0, 43, 54, 0.4);
+  --warn: #dc322f; --warn-soft: #f9dfd6; --soon: #a65600; --soon-soft: #fde3c3; --ok: #859900; --focus: #268bd2; --scrim: rgba(0, 43, 54, 0.4);
   --shadow: 0 1px 2px rgba(7, 54, 66, 0.06), 0 8px 28px rgba(7, 54, 66, 0.14);
   --card-shadow: 0 1px 0 rgba(7, 54, 66, 0.06);
   --pc0: #268bd2; --pc1: #d33682; --pc2: #859900; --pc3: #cb4b16; --pc4: #6c71c4; --pc5: #2aa198; --pc6: #b58900;
@@ -22,7 +22,7 @@
   :root:not([data-theme="light"]) {
     --paper: #002b36; --surface: #073642; --sunken: #0b4150; --ink: #eee8d5; --muted: #93a1a1; --line: #164b59;
     --folder: #b58900; --folder-soft: #2e3a1a; --folder-ink: #d9b23c; --on-folder: #002b36; --card-rule: #cb4b16;
-    --warn: #ef6461; --warn-soft: #3d2228; --ok: #a3b82c; --focus: #2aa198; --scrim: rgba(0, 0, 0, 0.55);
+    --warn: #ef6461; --warn-soft: #3d2228; --soon: #f3a54e; --soon-soft: #46301a; --ok: #a3b82c; --focus: #2aa198; --scrim: rgba(0, 0, 0, 0.55);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
     --card-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
     --pc0: #4ba3e6; --pc1: #e25c9b; --pc2: #a3b82c; --pc3: #e8743f; --pc4: #9196e6; --pc5: #36c2b6; --pc6: #d9b23c;
@@ -32,7 +32,7 @@
 :root[data-theme="dark"] {
     --paper: #002b36; --surface: #073642; --sunken: #0b4150; --ink: #eee8d5; --muted: #93a1a1; --line: #164b59;
     --folder: #b58900; --folder-soft: #2e3a1a; --folder-ink: #d9b23c; --on-folder: #002b36; --card-rule: #cb4b16;
-    --warn: #ef6461; --warn-soft: #3d2228; --ok: #a3b82c; --focus: #2aa198; --scrim: rgba(0, 0, 0, 0.55);
+    --warn: #ef6461; --warn-soft: #3d2228; --soon: #f3a54e; --soon-soft: #46301a; --ok: #a3b82c; --focus: #2aa198; --scrim: rgba(0, 0, 0, 0.55);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
     --card-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
     --pc0: #4ba3e6; --pc1: #e25c9b; --pc2: #a3b82c; --pc3: #e8743f; --pc4: #9196e6; --pc5: #36c2b6; --pc6: #d9b23c;
@@ -197,7 +197,7 @@ button.due { cursor: pointer; }
 .row:hover .due-none, .due-none:focus-visible { opacity: 1; }
 button.due:hover { border-color: var(--line); background: var(--surface); }
 .due-overdue, .due-today { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
-.due-soon { background: var(--folder-soft); color: var(--folder-ink); font-weight: 600; }
+.due-soon { background: var(--soon-soft); color: var(--soon); font-weight: 600; }
 .due-week, .due-later { border-color: var(--line); color: var(--ink); }
 .due-input { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; border: 0; padding: 0; min-height: 0 !important; }
 .quick-dates { display: flex; flex-wrap: wrap; gap: var(--s2); }
@@ -231,7 +231,7 @@ button.due:hover { border-color: var(--line); background: var(--surface); }
 /* Fälligkeit: überfällig und heute rot, bald im Ordner-Ton, sonst neutral */
 .chip[class*="due-"] { font-variant-numeric: tabular-nums; }
 .chip.due-overdue, .chip.due-today { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
-.chip.due-soon { background: var(--folder-soft); color: var(--folder-ink); font-weight: 600; }
+.chip.due-soon { background: var(--soon-soft); color: var(--soon); font-weight: 600; }
 .chip.due-week, .chip.due-later { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .row-icon {
   flex: none; width: 1.5rem; height: 1.5rem; margin: 0.5rem; display: grid; place-items: center; border-radius: 5px;
@@ -470,3 +470,18 @@ button.sync-pill:hover { background: var(--sunken); color: var(--ink); }
 .restore-point .hint { margin: 0; }
 .inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s2); margin-top: var(--s3); }
 .inline-form .field { flex: 1 1 14rem; }
+
+/* ---------- Kontext-Symbole (Stil „Linie“) ---------- */
+.ico { flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ctx-badge, .ctx-line { display: inline-flex; align-items: center; gap: 0.4rem; line-height: 1; min-width: 0; color: var(--ink); }
+.ctx-badge .ctx-name, .ctx-line .ctx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-badge .ctx-name { font-size: 0.8125rem; font-weight: 600; }
+/* Abschnittstitel: Symbol und Name auf einer Linie */
+h2.section:has(.ctx-line) { align-items: center; }
+h2.section .ctx-line { color: var(--muted); gap: 0.5rem; }
+h2.section .ctx-line .ico { color: var(--ink); }
+/* Filter: Symbol und Anzahl mittig */
+.filter.filter-ctx { align-items: center; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.filter.filter-ctx .ctx-badge { color: inherit; }
+/* Einstellungen: Kontextliste */
+.ctx-list .ctx-line { font-size: 0.9375rem; }

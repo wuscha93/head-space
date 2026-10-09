@@ -35,7 +35,7 @@ ok(await page.locator('form[data-form=next-step]').isVisible(), 'Dialog bleibt o
 await page.fill('#ns-title', 'Kette ölen'); await page.selectOption('#ns-ctx', '@Zuhause'); await page.fill('#ns-due', iso(5));
 await page.click('form[data-form=next-step] button[type=submit]');
 ok((await rowOf('Kette ölen').count()) === 1, 'Neuer Schritt in Nächste Schritte');
-ok((await rowOf('Kette ölen').locator('.chip.ctx').innerText()) === '@Zuhause', 'Neuer Schritt: Kontext');
+ok((await rowOf('Kette ölen').locator('.ctx-badge').getAttribute('title')) === 'Zuhause', 'Neuer Schritt: Kontext');
 ok((await rowOf('Kette ölen').locator('.chip.proj').count()) === 1, 'Neuer Schritt gehört zum Projekt');
 
 // 2. Übernehmen eines vorhandenen Projekteintrags

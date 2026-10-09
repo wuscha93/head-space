@@ -13,6 +13,18 @@ beforeEach(async () => {
   await S.init();
 });
 
+describe('Projektansicht', () => {
+  test('Schritte nach Frist sortiert, früheste zuoberst, ohne Datum danach (nach Erfassung)', () => {
+    const p = S.createProject({ title: 'P' });
+    S.capture('ohne 1', { list: 'next', projectId: p });
+    S.capture('spät', { list: 'next', projectId: p, due: d(9) });
+    S.capture('ohne 2', { list: 'next', projectId: p });
+    S.capture('früh', { list: 'next', projectId: p, due: d(-2) });
+    S.capture('mitte', { list: 'next', projectId: p, due: d(3) });
+    expect(L.Q.projectItems(p).map((i) => i.title)).toEqual(['früh', 'mitte', 'spät', 'ohne 1', 'ohne 2']);
+  });
+});
+
 describe('Datum', () => {
   test('isoDate formatiert lokal als JJJJ-MM-TT', () => {
     expect(L.isoDate(new Date(2026, 0, 5))).toBe('2026-01-05');

@@ -74,7 +74,8 @@ export const Q = {
   trash: () => all().filter((i) => i.list === 'trash'),
   projects: (status: Project['status']) =>
     [...S.state.projects.values()].filter((p) => !p.deleted && p.status === status).sort((a, b) => a.title.localeCompare(b.title, 'de')),
-  projectItems: (pid: string) => all().filter((i) => i.projectId === pid),
+  /** Schritte eines Projekts: früheste Frist zuoberst, ohne Datum danach (in Erfassungsreihenfolge) */
+  projectItems: (pid: string) => all().filter((i) => i.projectId === pid).sort(byDue),
   /** GTD-Regel: Jedes aktive Projekt braucht einen nächsten Schritt (oder wartet auf jemanden). */
   stalled: (p: Project) => !all().some((i) => i.projectId === p.id && (i.list === 'next' || i.list === 'waiting')),
 };

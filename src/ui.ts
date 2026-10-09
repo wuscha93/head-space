@@ -15,6 +15,7 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
 import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, project, projColor, today, toClarify, type DueState } from './logic';
+import { ctxBadge, ctxLabel, ctxWithName } from './icons';
 export { today } from './logic';
 
 // ---------- Hilfsfunktionen ----------
@@ -149,7 +150,7 @@ function dueSlot(kind: 'item' | 'project', id: string, due: string | null | unde
  */
 function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): string {
   const open = isOpen(it) && it.list !== 'reference';
-  const ctx = it.context ? `<span class="chip ctx">${esc(it.context)}</span>` : '';
+  const ctx = it.context ? ctxBadge(it.context) : '';
   let rem = '';
   if (open && it.tickler) {
     const waiting = it.list === 'waiting';
@@ -230,7 +231,7 @@ const LIST_LABEL: Record<ListName, string> = {
 
 function contextOptions(selected: string | null, none = 'Ohne Kontext') {
   return `<option value="">${none}</option>` +
-    S.state.contexts.map((c) => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
+    S.state.contexts.map((c) => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(ctxLabel(c))}</option>`).join('');
 }
 function projectOptions(selected: string | null) {
   return `<option value="">Kein Projekt</option>` +
@@ -271,18 +272,21 @@ function viewNext(): string {
   if (ctxFilter !== 'all' && ctxFilter !== '' && !used.includes(ctxFilter)) ctxFilter = 'all';
   const filterBtn = (val: string, label: string, n: number) =>
     `<button class="filter${ctxFilter === val ? ' is-active' : ''}" data-action="ctx" data-ctx="${esc(val)}" aria-pressed="${ctxFilter === val}">${esc(label)} <span class="num">${n}</span></button>`;
+  // Kontext-Filter: Symbol (eigene Kontexte: Etikett und Name) und Anzahl
+  const ctxBtn = (c: string, n: number) =>
+    `<button class="filter filter-ctx${ctxFilter === c ? ' is-active' : ''}" data-action="ctx" data-ctx="${esc(c)}" aria-pressed="${ctxFilter === c}" title="${esc(ctxLabel(c))}">${ctxBadge(c)} <span class="num">${n}</span></button>`;
   const filters = `<div class="filters" role="toolbar" aria-label="Nach Kontext filtern">
     ${filterBtn('all', 'Alle', items.length)}
-    ${used.map((c) => filterBtn(c, c, items.filter((i) => i.context === c).length)).join('')}
+    ${used.map((c) => ctxBtn(c, items.filter((i) => i.context === c).length)).join('')}
     ${hasNone ? filterBtn('', 'Ohne Kontext', items.filter((i) => !i.context).length) : ''}
   </div>`;
   let body: string;
   if (!items.length) {
     body = empty('Keine nächsten Schritte.', 'Klär deine Inbox oder füg einem Projekt einen konkreten nächsten Schritt hinzu.');
   } else if (ctxFilter === 'all') {
-    const groups = [...used.map((c) => [c, items.filter((i) => i.context === c)] as const)];
+    const groups = used.map((c) => [ctxWithName(c), items.filter((i) => i.context === c)] as const);
     if (hasNone) groups.push(['Ohne Kontext', items.filter((i) => !i.context)]);
-    body = groups.map(([c, its]) => `<h2 class="section">${esc(c)}</h2>${list(its, { check: true })}`).join('');
+    body = groups.map(([title, its]) => `<h2 class="section">${title}</h2>${list(its, { check: true })}`).join('');
   } else {
     body = list(items.filter((i) => (i.context ?? '') === ctxFilter), { check: true });
   }
@@ -522,11 +526,11 @@ function viewSettings(): string {
     <section class="panel">
       <h2>Kontexte</h2>
       <p class="hint">Kontexte beschreiben, wo oder womit du etwas tun kannst. So siehst du unterwegs nur, was unterwegs geht.</p>
-      <ul class="ctx-list">${S.state.contexts.map((c) => `<li><span class="chip ctx">${esc(c)}</span>
-        <button class="link" data-action="remove-ctx" data-ctx="${esc(c)}" aria-label="${esc(c)} entfernen">Entfernen</button></li>`).join('')}</ul>
+      <ul class="ctx-list">${S.state.contexts.map((c) => `<li>${ctxWithName(c)}
+        <button class="link" data-action="remove-ctx" data-ctx="${esc(c)}" aria-label="${esc(ctxLabel(c))} entfernen">Entfernen</button></li>`).join('')}</ul>
       <form class="capture compact" data-form="add-ctx">
         <label class="sr-only" for="ctx-input">Neuer Kontext</label>
-        <input id="ctx-input" name="name" placeholder="@Einkaufen" autocomplete="off" required>
+        <input id="ctx-input" name="name" placeholder="z. B. Einkaufen" autocomplete="off" required>
         <button class="btn" type="submit">Hinzufügen</button>
       </form>
     </section>
@@ -1706,7 +1710,7 @@ async function onSubmit(e: SubmitEvent) {
       const name = val(form, 'name');
       (form.querySelector('input') as HTMLInputElement).value = '';
       const n = S.addContext(name);
-      if (n) toast(`${n} hinzugefügt.`);
+      if (n) toast(`Kontext „${ctxLabel(n)}“ hinzugefügt.`);
       break;
     }
     case 'clarify-someday':
@@ -1867,12 +1871,20 @@ async function onSubmit(e: SubmitEvent) {
   }
 }
 
+/**
+ * Datum aus der Kalenderauswahl übernehmen. Safari (iPad/iPhone) meldet die Wahl teils nur mit
+ * „input“ und „change“ erst beim nächsten Antippen; deshalb zählt beides. Hat das Feld noch den
+ * Fokus (Rad-Auswahl), wird erst beim Verlassen übernommen, damit das Neuzeichnen die Auswahl
+ * nicht unterbricht.
+ */
+function takeDue(el: HTMLInputElement, final: boolean) {
+  if (!final && document.activeElement === el) return;
+  setDue(el.dataset.kind as 'item' | 'project', el.dataset.id!, el.value || null);
+}
+
 function onChange(e: Event) {
   const el = e.target as HTMLInputElement;
-  if (el.classList.contains('due-input')) {
-    setDue(el.dataset.kind as 'item' | 'project', el.dataset.id!, el.value || null);
-    return;
-  }
+  if (el.classList.contains('due-input')) { takeDue(el, true); return; }
   if (el.id === 'voice-cloud') {
     void S.setVoiceCloud(el.checked);
     toast(el.checked ? 'Online-Erkennung erlaubt.' : 'Online-Erkennung aus. Die App fragt wieder nach.');
@@ -1881,6 +1893,7 @@ function onChange(e: Event) {
 
 function onInput(e: Event) {
   const el = e.target as HTMLElement;
+  if (el.classList.contains('due-input')) { takeDue(el as HTMLInputElement, false); return; }
   if (el.dataset.bind === 'clarify-title' && modal?.kind === 'clarify') modal.title = (el as HTMLTextAreaElement).value;
 }
 
@@ -1905,6 +1918,7 @@ export function mount() {
   document.addEventListener('submit', (e) => { void onSubmit(e as SubmitEvent); });
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
+  document.addEventListener('focusout', (e) => { const el = e.target as HTMLElement; if (el.classList?.contains('due-input')) takeDue(el as HTMLInputElement, true); });
   window.addEventListener('hashchange', () => { readHash(); render(); });
   document.addEventListener('toggle', (e) => { if ((e.target as HTMLElement).id === 'voice-diag') voiceDiagOpen = (e.target as HTMLDetailsElement).open; }, true);
   document.addEventListener('keydown', onKey);
