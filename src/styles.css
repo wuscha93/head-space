@@ -204,7 +204,9 @@ button.due:hover { border-color: var(--line); background: var(--surface); }
 
 @media (max-width: 560px) {
   /* Handy: Kontext ist meist nur ein Symbol, damit die Daten Platz haben */
-  .row-meta { grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .row-meta { grid-template-columns: 2.25rem minmax(0, 1.1fr) minmax(0, 1fr); gap: 0.3rem; }
+  .row-meta .due, .row-meta .chip.date { padding-inline: 0.4rem; }
+  .drag-handle { width: 1.75rem; margin-right: -0.4rem; }
   .row-meta.proj-meta { grid-template-columns: 6.75rem minmax(0, 1fr); }
   .slot-rest { grid-column: 1 / -1; }
   .slot-rest:empty { display: none; }
