@@ -121,3 +121,12 @@ describe('Offline-Verfügbarkeit', () => {
     expect(env.some((l) => l.startsWith('Modus:'))).toBe(true);
   });
 });
+
+describe('Ein/Aus', () => {
+  test('Spracheingabe ist vorerst ausgeschaltet, lässt sich (für Tests) einschalten', () => {
+    expect(V.enabled()).toBe(false);
+    localStorage.setItem('kopf-frei-voice-enabled', '1');
+    expect(V.enabled()).toBe(true);
+    localStorage.removeItem('kopf-frei-voice-enabled');
+  });
+});

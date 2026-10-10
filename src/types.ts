@@ -31,6 +31,8 @@ export interface Item {
   prevList?: ListName | null;
   /** Endgültig gelöscht (Papierkorb geleert) */
   deleted?: boolean;
+  /** Eigene Position innerhalb des Projekts (Ziehen in der Projektansicht). null = nach Frist. Ab 0.8. */
+  order?: number | null;
 }
 
 export type ProjectStatus = 'active' | 'someday' | 'done' | 'dropped';
@@ -47,6 +49,8 @@ export interface Project {
   updated: number;
   completed: number | null;
   deleted?: boolean;
+  /** Schrittweise: in „Nächste Schritte“ nur den obersten Schritt zeigen. Fehlt = alle. Ab 0.8. */
+  sequential?: boolean;
 }
 
 /**

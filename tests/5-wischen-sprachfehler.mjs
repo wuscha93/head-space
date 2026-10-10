@@ -30,7 +30,7 @@ const FAKE = `
 `;
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
-await ctx.addInitScript(FAKE);
+await ctx.addInitScript(FAKE + `; localStorage.setItem('kopf-frei-voice-enabled', '1');`); // Spracheingabe ist seit 0.8 ausgeschaltet; für diese Tests ein
 const page = harden(await ctx.newPage());
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -163,7 +163,7 @@ await page.screenshot({ path: SH + '/w2-voice-settings.png', fullPage: true });
 
 // 9. Online erlaubt: Offline-Ausfall wechselt ohne Rückfrage auf online
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-await ctx2.addInitScript(FAKE);
+await ctx2.addInitScript(FAKE + `; localStorage.setItem('kopf-frei-voice-enabled', '1');`);
 const p2 = harden(await ctx2.newPage());
 p2.on('pageerror', (e) => errors.push('p2: ' + e.message));
 await p2.goto(URL + '#settings'); await p2.waitForSelector('#voice-cloud');

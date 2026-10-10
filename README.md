@@ -8,17 +8,17 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in die Live-App.
 
-## Funktionen (Version 0.7.0)
+## Funktionen (Version 0.8.0)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
 - **Kontexte als Symbole** (Computer, Telefon, Unterwegs, Zuhause, Büro, Besprechung; eigene Kontexte mit Etikett und Namen)
 - **Listen**: Nächste Schritte (Kontext-Filter), Fristen, Projekte, Warten auf, Wiedervorlage, Irgendwann/Vielleicht, Referenz, Erledigt, Papierkorb
-- **Projekte** mit Ziel, Frist und Farbe; Schritte nach Frist sortiert (früheste zuoberst); beim Erledigen des letzten Schritts fragt die App nach dem nächsten
-- **Fälligkeitsdatum** direkt über das Kalendersymbol, **Wiedervorlage** („Erst ab“, „Nachfassen am“)
+- **Projekte** mit Ziel, Frist und Farbe; Schritte nach Frist sortiert oder per Griff ⋮⋮ selbst geordnet (Warndreieck, wenn die Reihenfolge einer Frist widerspricht); Wahl „Alle“ oder „Nur die nächste“ für die Liste Nächste Schritte; Frist gleich beim Hinzufügen; beim Erledigen des letzten Schritts fragt die App nach dem nächsten
+- **Fälligkeitsdatum** (Fahne) direkt in der Karte, **Wiedervorlage** („Erst ab“ mit Sanduhr, „Nachfassen“ mit Glocke), jeweils mit kleinem Titel
 - **Rückgängig** (3 Sekunden) nach Erledigen, Löschen, Verschieben, Klären und Projektstatus
 - **Wischen zum Löschen**: Karte nach links wischen → „Löschen“ (endgültig, ohne Rückgängig). Aufgaben eines gelöschten Projekts bleiben als Einzelaufgaben.
-- **Spracheingabe** offline bevorzugt, sonst online mit Erlaubnis; Probleme werden angezeigt (Einstellungen → Spracheingabe → Letztes Problem)
+- **Spracheingabe**: vorerst ausgeschaltet (Code bleibt, für spätere Versionen)
 - **Karten-Design** in Solarized, Hell/Dunkel/System umschaltbar
 - **Sync** über ein privates GitHub-Repository, Ende-zu-Ende verschlüsselt
 - **Zurück auf früheren Stand**: Einstellungen → Stand vor einem Update, Ende eines Tages oder eigener Zeitpunkt. Nichts wird gelöscht, die App gleicht mit neuen Änderungen aus; lässt sich selbst wieder rückgängig machen.

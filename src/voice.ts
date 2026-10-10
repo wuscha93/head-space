@@ -19,6 +19,9 @@ export const supported = (): boolean => !!ctor();
 
 // Die Abfrage ist neu in Chrome. Manche Browser-Versionen hängen oder stürzen dabei ab.
 // Deshalb: Ergebnis merken, mit Zeitlimit fragen, und einen Absturz beim nächsten Start erkennen.
+/** Spracheingabe vorerst ausgeschaltet (0.8). Für Tests: localStorage „kopf-frei-voice-enabled“ = 1. */
+export const enabled = (): boolean => { try { return localStorage.getItem(storageKey('kopf-frei-voice-enabled')) === '1'; } catch { return false; } };
+
 const PROBE_KEY = storageKey('kopf-frei-voice-probe');
 const probe = {
   get: (): string | null => { try { return localStorage.getItem(PROBE_KEY); } catch { return null; } },

@@ -14,7 +14,7 @@ declare const __APP_BUILD__: string;
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
-import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, project, projColor, today, toClarify, type DueState } from './logic';
+import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, orderConflicts, project, projColor, today, toClarify, type DueState } from './logic';
 import { ctxBadge, ctxLabel, ctxWithName } from './icons';
 export { today } from './logic';
 
@@ -46,6 +46,7 @@ type Modal =
   | { kind: 'confirm'; text: string; label: string; run: () => void }
   | { kind: 'next-step'; projectId: string; fromId: string }
   | { kind: 'due'; id: string; target: 'item' | 'project' }
+  | { kind: 'conflict'; id: string }
   | { kind: 'voice-consent'; target: string; back: Modal }
   | { kind: 'voice-install'; target: string; back: Modal };
 let modal: Modal = null;
@@ -126,8 +127,12 @@ function syncIndicator(): string {
 
 // ---------- Bausteine ----------
 
-const CAL_SVG = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-const CLOCK_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+/** Frist (Fahne), Nachfassen (Glocke), Erst ab (Sanduhr): auf einen Blick unterscheidbar */
+const FLAG_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.5 14.5V2M3.5 2.5h8.2l-1.6 3 1.6 3H3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+const BELL_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1.2 1.2H2.8zM6.6 14.2a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+const HOUR_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 2h8M4 14h8M5 2c0 3 6 3 6 6s-6 3-6 6M11 2c0 3-6 3-6 6s6 3 6 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+const WARN_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.3 3.9L2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" fill="currentColor"/><path d="M12 9v4.6" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.25" fill="var(--surface)"/></svg>`;
+const GRIP_SVG = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="5.5" cy="3.5" r="1.3"/><circle cx="10.5" cy="3.5" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12.5" r="1.3"/><circle cx="10.5" cy="12.5" r="1.3"/></g></svg>`;
 
 /**
  * Fälligkeit als eigener Platz in der Zeile. Ein Klick aufs Kalendersymbol öffnet die
@@ -136,10 +141,11 @@ const CLOCK_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="
 function dueSlot(kind: 'item' | 'project', id: string, due: string | null | undefined, editable = true): string {
   const st = due ? dueState(due) : 'none';
   const text = !due ? '' : st === 'today' ? 'Heute' : fmtDate(due);
-  if (!editable) return `<span class="slot slot-due">${due ? `<span class="due due-${st}">${CAL_SVG}<span>${text}</span></span>` : ''}</span>`;
+  const cap = due ? '<span class="cap" aria-hidden="true">Fällig</span>' : '';
+  if (!editable) return `<span class="slot slot-due${due ? ' has-cap' : ''}">${due ? `${cap}<span class="due due-${st}">${FLAG_SVG}<span>${text}</span></span>` : ''}</span>`;
   const label = !due ? 'Frist setzen' : `${st === 'overdue' ? 'Überfällig seit' : 'Fällig am'} ${fmtDate(due)}, ändern`;
-  return `<span class="slot slot-due">
-    <button type="button" class="due due-${st}" data-action="due-pick" data-kind="${kind}" data-id="${id}" title="${label}" aria-label="${label}">${CAL_SVG}${text ? `<span>${text}</span>` : ''}</button>
+  return `<span class="slot slot-due${due ? ' has-cap' : ''}">${cap}
+    <button type="button" class="due due-${st}" data-action="due-pick" data-kind="${kind}" data-id="${id}" title="${label}" aria-label="${label}">${FLAG_SVG}${text ? `<span>${text}</span>` : ''}</button>
     <input type="date" class="due-input" tabindex="-1" aria-hidden="true" data-kind="${kind}" data-id="${id}" value="${due ?? ''}">
   </span>`;
 }
@@ -155,7 +161,7 @@ function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): strin
   if (open && it.tickler) {
     const waiting = it.list === 'waiting';
     const label = `${waiting ? 'Nachfassen am' : 'Erst ab'} ${fmtDate(it.tickler)}`;
-    rem = `<span class="chip date${waiting && it.tickler <= today() ? ' due' : ''}" title="${label}" aria-label="${label}">${CLOCK_SVG}${fmtDate(it.tickler)}</span>`;
+    rem = `<span class="cap" aria-hidden="true">${waiting ? 'Nachfassen' : 'Erst ab'}</span><span class="chip date rem${waiting && it.tickler <= today() ? ' due' : ''}" title="${label}" aria-label="${label}">${waiting ? BELL_SVG : HOUR_SVG}${fmtDate(it.tickler)}</span>`;
   }
   const rest: string[] = [];
   const p = project(it.projectId);
@@ -165,7 +171,7 @@ function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): strin
   if (it.notes && it.list !== 'reference') rest.push(`<span class="chip" title="Hat Notizen">Notiz</span>`);
   if (!open && !ctx && !rest.length) return '';
   return `<div class="row-meta">
-    <span class="slot slot-ctx">${ctx}</span>${open ? dueSlot('item', it.id, it.due) : '<span class="slot slot-due"></span>'}<span class="slot slot-rem">${rem}</span><span class="slot slot-rest">${rest.join('')}</span>
+    <span class="slot slot-ctx">${ctx}</span>${open ? dueSlot('item', it.id, it.due) : '<span class="slot slot-due"></span>'}<span class="slot slot-rem${rem ? ' has-cap' : ''}">${rem}</span><span class="slot slot-rest">${rest.join('')}</span>
   </div>`;
 }
 
@@ -180,23 +186,26 @@ function card(cls: string, rowId: string, kind: 'item' | 'project', inner: strin
   </li>`;
 }
 
-function row(it: Item, opts: { check?: boolean; clarify?: boolean; project?: boolean; list?: boolean; restore?: boolean } = {}): string {
+type RowOpts = { check?: boolean; clarify?: boolean; project?: boolean; list?: boolean; restore?: boolean; drag?: boolean; conflict?: boolean; upNext?: boolean };
+function row(it: Item, opts: RowOpts = {}): string {
   const lead = opts.check
     ? `<button class="check" data-action="complete" data-id="${it.id}" aria-label="Als erledigt markieren"></button>`
     : opts.restore
       ? `<button class="check is-done" data-action="restore" data-id="${it.id}" aria-label="Wiederherstellen" title="Wiederherstellen"></button>`
       : '';
   const p = opts.project !== false ? project(it.projectId) : undefined;
-  return card(`row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}`, it.id, 'item', `
+  return card(`row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}${opts.upNext ? ' is-up-next' : ''}`, it.id, 'item', `
     ${lead}
     <span class="row-badge" aria-hidden="true">${p ? esc(initials(p.title)) : ''}</span>
     <div class="row-main" data-action="edit" data-id="${it.id}">
-      ${p ? `<span class="row-eyebrow">${esc(p.title)}</span>` : ''}
+      ${p ? `<span class="row-eyebrow">${esc(p.title)}</span>` : ''}${opts.upNext ? '<span class="row-eyebrow up-next">Als Nächstes</span>' : ''}
       <button type="button" class="row-title" data-action="edit" data-id="${it.id}">${esc(it.title) || '<em>Ohne Titel</em>'}</button>
       ${meta(it, opts)}
       ${it.list === 'reference' && it.notes ? `<span class="row-notes">${esc(it.notes.slice(0, 160))}</span>` : ''}
     </div>
-    ${opts.clarify ? `<button class="btn small" data-action="clarify" data-id="${it.id}">Klären</button>` : ''}`);
+    ${opts.clarify ? `<button class="btn small" data-action="clarify" data-id="${it.id}">Klären</button>` : ''}
+    ${opts.conflict ? `<button type="button" class="conflict-btn" data-action="conflict" data-id="${it.id}" aria-label="Frist-Konflikt: Erklärung anzeigen" title="Frist-Konflikt">${WARN_SVG}</button>` : ''}
+    ${opts.drag ? `<button type="button" class="drag-handle" data-action="noop" data-drag="${it.id}" aria-label="Verschieben (Pfeiltasten oder ziehen)" title="Ziehen zum Verschieben">${GRIP_SVG}</button>` : ''}`);
 }
 
 /** Zeile für ein Projekt: Fällig | Status | Ergebnis */
@@ -213,11 +222,12 @@ function projectRow(p: Project, status: string, icon = false): string {
 
 const MIC_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 function mic(target: string): string {
+  if (!V.enabled()) return '';
   const on = V.activeTarget === target;
   return `<button type="button" class="btn mic${on ? ' is-listening' : ''}" data-action="voice" data-target="${target}" aria-pressed="${on}" aria-label="${on ? 'Aufnahme beenden' : 'Spracheingabe'}" title="Spracheingabe">${MIC_SVG}</button>`;
 }
 
-const list = (items: Item[], opts: Parameters<typeof row>[1] = {}) => `<ul class="rows">${items.map((i) => row(i, opts)).join('')}</ul>`;
+const list = (items: Item[], opts: RowOpts = {}) => `<ul class="rows">${items.map((i) => row(i, opts)).join('')}</ul>`;
 
 const head = (title: string, lede: string, extra = '') =>
   `<header class="view-head"><div><h1>${title}</h1><p class="lede">${lede}</p></div>${extra}</header>`;
@@ -355,11 +365,15 @@ function viewProject(id: string): string {
       <label class="sr-only" for="step-input">Nächster Schritt</label>
       <input id="step-input" name="title" placeholder="Nächster Schritt, z. B. „Offerte bei Maler anfragen“" autocomplete="off" required>
       ${mic('step-input')}
+      <span class="step-due">
+        <button type="button" class="btn step-due-btn" data-action="step-due-pick" aria-label="Frist wählen" title="Frist wählen">${FLAG_SVG}<span class="step-due-text"></span></button>
+        <input type="date" id="step-due" name="due" class="step-due-input" tabindex="-1" aria-label="Frist">
+      </span>
       <label class="sr-only" for="step-ctx">Kontext</label>
       <select id="step-ctx" name="context">${contextOptions(null)}</select>
       <button class="btn primary" type="submit">Hinzufügen</button>
     </form>` : ''}
-    ${next.length ? `<h2 class="section">Nächste Schritte</h2>${list(next, { check: true, project: false })}` : ''}
+    ${next.length ? `<div class="section-row"><h2 class="section">Nächste Schritte</h2>${p.status === 'active' ? seqToggle(p) : ''}</div>${stepList(p, next)}` : ''}
     ${waiting.length ? `<h2 class="section">Warten auf</h2>${list(waiting, { check: true, project: false })}` : ''}
     ${other.length ? `<h2 class="section">Weiteres</h2>${list(other, { project: false, list: true })}` : ''}
     ${done.length ? `<h2 class="section">Erledigt</h2>${list(done, { restore: true, project: false })}` : ''}
@@ -368,6 +382,41 @@ function viewProject(id: string): string {
       ${p.status === 'active' ? `<button class="btn" data-action="project-status" data-id="${p.id}" data-status="someday">Auf Irgendwann verschieben</button>
         <button class="btn" data-action="project-status" data-id="${p.id}" data-status="done">Abschliessen</button>` : ''}
       ${p.status !== 'active' ? `<button class="btn" data-action="project-status" data-id="${p.id}" data-status="active">Aktivieren</button>` : ''}
+    </div>`;
+}
+
+/** Wahl: in „Nächste Schritte“ alle Schritte oder nur den obersten zeigen */
+function seqToggle(p: Project): string {
+  const b = (seq: boolean, label: string) =>
+    `<button type="button" class="seg${!!p.sequential === seq ? ' is-active' : ''}" data-action="project-seq" data-id="${p.id}" data-seq="${seq ? 1 : 0}" aria-pressed="${!!p.sequential === seq}">${label}</button>`;
+  return `<div class="segmented" role="group" aria-label="In Nächste Schritte zeigen">${b(false, 'Alle')}${b(true, 'Nur die nächste')}</div>`;
+}
+
+/** Schritte eines Projekts: verschiebbar, mit Warnung bei Konflikten mit Fristen */
+function stepList(p: Project, next: Item[]): string {
+  const conflicts = orderConflicts(next);
+  const hint = p.sequential ? '<p class="hint seq-hint">In „Nächste Schritte“ erscheint nur der oberste Schritt. Reihenfolge mit dem Griff ⋮⋮ ändern.</p>' : '';
+  return `${hint}<ul class="rows sortable" data-sortable="${p.id}">${next.map((i, k) => row(i, {
+    check: true, project: false, drag: next.length > 1, conflict: conflicts.has(i.id), upNext: !!p.sequential && k === 0,
+  })).join('')}</ul>`;
+}
+
+/** Erklärung zum Warndreieck */
+function conflictHtml(id: string): string {
+  const it = S.state.items.get(id);
+  const p = project(it?.projectId ?? null);
+  if (!it || !p) return '';
+  const above = orderConflicts(Q.projectItems(p.id).filter((i) => i.list === 'next')).get(id) ?? [];
+  return `
+    <div class="sheet">
+      <div class="sheet-head"><h2>Reihenfolge und Frist passen nicht</h2><button type="button" class="link" data-action="close">Schliessen</button></div>
+      <p><strong>${esc(it.title)}</strong> ist am <strong>${fmtDate(it.due ?? null)}</strong> fällig, steht aber hinter ${above.length === 1 ? 'einem Schritt' : `${above.length} Schritten`} mit späterer Frist:</p>
+      <ul class="conflict-list">${above.map((o) => `<li>${esc(o.title)} <span class="muted">· fällig ${fmtDate(o.due ?? null)}</span></li>`).join('')}</ul>
+      <p class="hint">Deine Reihenfolge gilt${p.sequential ? ', und in „Nächste Schritte“ erscheint nur der oberste Schritt. Dieser Schritt kommt also womöglich erst nach seiner Frist an die Reihe' : ''}. Zieh ihn nach oben, wenn er zuerst dran ist, oder lass es so, wenn die Reihenfolge Absicht ist.</p>
+      <div class="actions-row spread">
+        <button type="button" class="btn" data-action="order-by-due" data-id="${p.id}">Ganzes Projekt nach Frist sortieren</button>
+        <button type="button" class="btn primary" data-action="close">Verstanden</button>
+      </div>
     </div>`;
 }
 
@@ -537,7 +586,7 @@ function viewSettings(): string {
 
     ${syncPanel()}
 
-    <section class="panel">
+    ${V.enabled() ? `<section class="panel">
       <h2>Spracheingabe</h2>
       <p class="hint">Tipp auf das Mikrofon neben einem Eingabefeld und sprich. Der Text landet im Feld, du bestätigst mit „Erfassen“.</p>
       <dl class="facts">
@@ -561,7 +610,7 @@ function viewSettings(): string {
         <input id="voice-test-input" readonly placeholder="Hier erscheint der erkannte Text">
         <pre class="voice-log" id="voice-log">${esc(voiceDiagText())}</pre>
       </details>
-    </section>
+    </section>` : ''}
 
     <section class="panel">
       <h2>Verschlüsseltes Backup</h2>
@@ -674,6 +723,7 @@ function renderModal() {
     </form>`;
   else if (modal.kind === 'next-step') html = nextStepHtml(modal.projectId, modal.fromId);
   else if (modal.kind === 'due') html = dueHtml(modal.id, modal.target);
+  else if (modal.kind === 'conflict') html = conflictHtml(modal.id);
   else if (modal.kind === 'voice-consent' && V.lastAvailability() === 'available') html = `
     <div class="sheet">
       <div class="sheet-head"><h2>Spracheingabe bereit</h2><button type="button" class="link" data-action="voice-cancel">Abbrechen</button></div>
@@ -888,10 +938,12 @@ function editHtml(id: string): string {
         <div class="field"><label for="e-ctx">Kontext</label><select id="e-ctx" name="context">${contextOptions(it.context)}</select></div>
         <div class="field"><label for="e-proj">Projekt</label><select id="e-proj" name="projectId">${projectOptions(it.projectId)}</select></div>
         <div class="field"><label for="e-wait">Wartet auf</label><input id="e-wait" name="waitingFor" value="${esc(it.waitingFor ?? '')}" placeholder="Person"></div>
-        <div class="field"><label for="e-due">Fällig am</label><input id="e-due" name="due" type="date" value="${it.due ?? ''}"></div>
-        <div class="field"><label for="e-tickler">${it.list === 'waiting' ? 'Nachfassen am' : 'Erst ab'}</label><input id="e-tickler" name="tickler" type="date" value="${it.tickler ?? ''}"></div>
+        <div class="field"><label for="e-due" class="label-ico">${FLAG_SVG}Fällig am</label><input id="e-due" name="due" type="date" value="${it.due ?? ''}"></div>
+        <div class="field"><label for="e-tickler" class="label-ico">${it.list === 'waiting' ? `${BELL_SVG}Nachfassen am` : `${HOUR_SVG}Erst ab`}</label><input id="e-tickler" name="tickler" type="date" value="${it.tickler ?? ''}"></div>
       </div>
-      <p class="hint">„Fällig am“ ist die Frist. „Erst ab“ blendet den Eintrag bis zu diesem Tag aus.</p>
+      <p class="hint">${it.list === 'waiting'
+        ? '„Fällig am“ ist die Frist. „Nachfassen am“ erinnert dich, bei der Person nachzufragen.'
+        : '„Fällig am“ ist die Frist. „Erst ab“ blendet den Eintrag bis zu diesem Tag aus.'}</p>
       <p class="hint">Erfasst ${fmtTs(it.created)}${it.completed ? ` · erledigt ${fmtTs(it.completed)}` : ''}</p>
       <div class="actions-row spread">
         ${it.list !== 'trash' ? `<button type="button" class="btn danger" data-action="trash" data-id="${it.id}">In den Papierkorb</button>` : '<span></span>'}
@@ -1078,9 +1130,82 @@ function closeSwipe(animate = true) {
   openInner = null;
 }
 
+// ---------- Ziehen in der Projektansicht (Griff ⋮⋮, Maus und Finger) ----------
+
+let drag: {
+  li: HTMLElement; list: HTMLElement; pid: string; id: string; pointer: number;
+  y0: number; from: number; to: number; h: number; sibs: HTMLElement[]; mids: number[];
+} | null = null;
+
+function dragStart(e: PointerEvent, handle: HTMLElement) {
+  const li = handle.closest<HTMLElement>('li.row');
+  const list = li?.closest<HTMLElement>('[data-sortable]');
+  if (!li || !list) return;
+  const sibs = [...list.children] as HTMLElement[];
+  const from = sibs.indexOf(li);
+  const rects = sibs.map((el) => el.getBoundingClientRect());
+  const gap = sibs.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 0;
+  drag = {
+    li, list, pid: list.dataset.sortable!, id: li.dataset.row!, pointer: e.pointerId,
+    y0: e.clientY + window.scrollY, from, to: from, h: rects[from].height + gap, sibs,
+    mids: rects.map((r) => r.top + window.scrollY + r.height / 2),
+  };
+  try { handle.setPointerCapture(e.pointerId); } catch { /* ältere Browser */ }
+  li.classList.add('is-dragging');
+  list.classList.add('is-sorting');
+}
+
+function dragMove(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.pointer) return;
+  // am Bildschirmrand mitscrollen
+  if (e.clientY < 70) window.scrollBy(0, -10); else if (e.clientY > window.innerHeight - 70) window.scrollBy(0, 10);
+  const d = drag;
+  const dy = e.clientY + window.scrollY - d.y0;
+  d.li.style.transform = `translateY(${dy}px)`;
+  const c = d.mids[d.from] + dy;
+  let to = 0;
+  d.mids.forEach((m, i) => { if (i !== d.from && m < c) to++; });
+  d.to = to;
+  d.sibs.forEach((el, i) => {
+    if (i === d.from) return;
+    let off = 0;
+    if (d.from < to && i > d.from && i <= to) off = -d.h;
+    if (to < d.from && i >= to && i < d.from) off = d.h;
+    el.style.transform = off ? `translateY(${off}px)` : '';
+  });
+}
+
+function dragEnd(e: PointerEvent | null, cancel = false) {
+  if (!drag || (e && e.pointerId !== drag.pointer)) return;
+  const d = drag;
+  drag = null;
+  d.sibs.forEach((el) => { el.style.transform = ''; });
+  d.li.classList.remove('is-dragging');
+  d.list.classList.remove('is-sorting');
+  if (!cancel && d.to !== d.from) { S.moveProjectItem(d.pid, d.id, d.to); flash(d.id); }
+}
+
+/** Tastatur: Griff fokussieren, Pfeil hoch/runter verschiebt */
+function dragKey(e: KeyboardEvent, handle: HTMLElement) {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  const li = handle.closest<HTMLElement>('li.row');
+  const list = li?.closest<HTMLElement>('[data-sortable]');
+  if (!li || !list) return;
+  e.preventDefault();
+  const from = [...list.children].indexOf(li);
+  const to = from + (e.key === 'ArrowUp' ? -1 : 1);
+  if (to < 0 || to >= list.children.length) return;
+  const id = li.dataset.row!;
+  S.moveProjectItem(list.dataset.sortable!, id, to);
+  document.querySelector<HTMLElement>(`[data-drag="${CSS.escape(id)}"]`)?.focus();
+  flash(id);
+}
+
 function onPointerDown(e: PointerEvent) {
   // Neue Berührung: der Klick einer vorherigen Wischgeste ist vorbei, dieser Tipp zählt
   swallowClick = false;
+  const handle = (e.target as HTMLElement).closest<HTMLElement>('.drag-handle');
+  if (handle && !modal) { dragStart(e, handle); return; }
   if (e.pointerType === 'mouse' || modal) return;
   // Finger auf dem Löschen-Knopf: Karte offen lassen, damit der Tipp ankommt
   if ((e.target as HTMLElement).closest('.swipe-del')) return;
@@ -1091,6 +1216,7 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (drag) { dragMove(e); return; }
   if (!swipe || e.pointerId !== swipe.pid) return;
   const dx = e.clientX - swipe.x0;
   const dy = e.clientY - swipe.y0;
@@ -1105,6 +1231,7 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp(e: PointerEvent) {
+  if (drag) { dragEnd(e); return; }
   if (!swipe || e.pointerId !== swipe.pid) return;
   const s = swipe;
   swipe = null;
@@ -1117,6 +1244,7 @@ function onPointerUp(e: PointerEvent) {
 }
 
 function onPointerCancel() {
+  if (drag) { dragEnd(null, true); return; }
   if (swipe?.active) setOffset(swipe.inner, swipe.base, true);
   swipe = null;
 }
@@ -1302,7 +1430,7 @@ export function render() {
   main.innerHTML = views[route.view]();
   keep.forEach((v, id) => {
     const f = document.getElementById(id) as HTMLInputElement | null;
-    if (f && main.contains(f) && f.value !== v) f.value = v;
+    if (f && main.contains(f) && f.value !== v) { f.value = v; if (f.classList.contains('step-due-input')) showStepDue(f); }
   });
   if (keepId) document.getElementById(keepId)?.focus();
   if (route.view === 'settings') { updatePersistState(); updateVoiceState(); void updateRestorePoints(); }
@@ -1520,6 +1648,22 @@ function onClick(e: MouseEvent) {
       break;
     }
     case 'due-pick': openDuePicker(el); break;
+    case 'step-due-pick': {
+      const input = el.parentElement?.querySelector<HTMLInputElement>('.step-due-input');
+      if (!input) break;
+      try { if (typeof input.showPicker === 'function') { input.showPicker(); break; } } catch { /* unten */ }
+      input.classList.add('is-open'); input.focus();
+      break;
+    }
+    case 'noop': break;
+    case 'conflict': modal = { kind: 'conflict', id: el.dataset.id! }; renderModal(); break;
+    case 'order-by-due': S.resetProjectOrder(el.dataset.id!); modal = null; renderModal(); toast('Nach Frist sortiert.'); break;
+    case 'project-seq': {
+      const seq = el.dataset.seq === '1';
+      S.patchProject(el.dataset.id!, { sequential: seq });
+      toast(seq ? 'In „Nächste Schritte“ erscheint nur noch der oberste Schritt.' : 'In „Nächste Schritte“ erscheinen alle Schritte.');
+      break;
+    }
     case 'due-quick':
     case 'due-clear':
       if (modal?.kind === 'due') {
@@ -1610,6 +1754,7 @@ function onClick(e: MouseEvent) {
       break;
     }
     case 'voice-capture':
+      if (!V.enabled()) break;
       modal = { kind: 'capture' }; renderModal();
       startVoice('quick-input');
       break;
@@ -1701,8 +1846,12 @@ async function onSubmit(e: SubmitEvent) {
     case 'project-step': {
       const t = val(form, 'title');
       if (!t) return;
+      const due = val(form, 'due') || null;
+      // Felder leeren, bevor neu gezeichnet wird (sonst übernimmt die Ansicht die alten Werte)
       (form.querySelector('input[name=title]') as HTMLInputElement).value = '';
-      S.capture(t, { list: 'next', projectId: id, context: val(form, 'context') || null });
+      const dueIn = form.querySelector<HTMLInputElement>('.step-due-input');
+      if (dueIn) dueIn.value = '';
+      S.addProjectStep(id, t, { context: val(form, 'context') || null, due });
       document.getElementById('step-input')?.focus();
       break;
     }
@@ -1882,9 +2031,22 @@ function takeDue(el: HTMLInputElement, final: boolean) {
   setDue(el.dataset.kind as 'item' | 'project', el.dataset.id!, el.value || null);
 }
 
+/** Gewählte Frist im Projekt-Eingabefeld neben der Fahne anzeigen */
+function showStepDue(input: HTMLInputElement) {
+  const btn = input.parentElement?.querySelector<HTMLElement>('.step-due-btn');
+  const txt = btn?.querySelector('.step-due-text');
+  if (!btn || !txt) return;
+  input.classList.remove('is-open');
+  const v = input.value;
+  txt.textContent = v ? (dueState(v) === 'today' ? 'Heute' : fmtDate(v)) : '';
+  btn.className = `btn step-due-btn${v ? ` has-date due-${dueState(v)}` : ''}`;
+  btn.setAttribute('aria-label', v ? `Frist ${fmtDate(v)}, ändern` : 'Frist wählen');
+}
+
 function onChange(e: Event) {
   const el = e.target as HTMLInputElement;
   if (el.classList.contains('due-input')) { takeDue(el, true); return; }
+  if (el.classList.contains('step-due-input')) { showStepDue(el); return; }
   if (el.id === 'voice-cloud') {
     void S.setVoiceCloud(el.checked);
     toast(el.checked ? 'Online-Erkennung erlaubt.' : 'Online-Erkennung aus. Die App fragt wieder nach.');
@@ -1894,10 +2056,13 @@ function onChange(e: Event) {
 function onInput(e: Event) {
   const el = e.target as HTMLElement;
   if (el.classList.contains('due-input')) { takeDue(el as HTMLInputElement, false); return; }
+  if (el.classList.contains('step-due-input')) { showStepDue(el as HTMLInputElement); return; }
   if (el.dataset.bind === 'clarify-title' && modal?.kind === 'clarify') modal.title = (el as HTMLTextAreaElement).value;
 }
 
 function onKey(e: KeyboardEvent) {
+  const h = (e.target as HTMLElement).closest?.('.drag-handle') as HTMLElement | null;
+  if (h) { dragKey(e, h); return; }
   if (e.key === 'Escape' && modal) { modal = null; renderModal(); return; }
   const t = e.target as HTMLElement;
   const typing = t.matches('input, textarea, select, [contenteditable]');
@@ -1909,6 +2074,8 @@ function onKey(e: KeyboardEvent) {
 }
 
 export function mount() {
+  // Spracheingabe vorerst aus: auch den schwebenden Mikrofon-Knopf ausblenden
+  document.documentElement.classList.toggle('voice-off', !V.enabled());
   readHash();
   document.addEventListener('click', onClick, true);
   document.addEventListener('pointerdown', onPointerDown, { passive: true });

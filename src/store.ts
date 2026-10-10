@@ -5,6 +5,7 @@ import * as db from './db';
 import { ENV, IS_TEST } from './env';
 import { decryptJSON, encryptJSON, type EncryptedFile } from './crypto';
 import type { EventType, GtdEvent, Item, ListName, Project, State } from './types';
+import { Q, orderForNew, reorderPatches } from './logic';
 
 /** Format der Ereignisse. Nur erhöhen, wenn alte Apps neue Ereignisse nicht mehr verstehen dürften. */
 export const EVENT_FORMAT = 1;
@@ -66,7 +67,7 @@ export function uid(): string {
 export function normalizeItem(d: Partial<Item> & { id: string }, ts: number): Item {
   return {
     title: '', notes: '', list: 'inbox', context: null, projectId: null, waitingFor: null,
-    tickler: null, due: null, completed: null, prevList: null,
+    tickler: null, due: null, completed: null, prevList: null, order: null,
     ...d,
     created: d.created ?? ts,
     updated: ts,
@@ -75,7 +76,7 @@ export function normalizeItem(d: Partial<Item> & { id: string }, ts: number): It
 
 export function normalizeProject(d: Partial<Project> & { id: string }, ts: number): Project {
   return {
-    title: '', outcome: '', status: 'active', due: null, completed: null,
+    title: '', outcome: '', status: 'active', due: null, completed: null, sequential: false,
     ...d,
     created: d.created ?? ts,
     updated: ts,
@@ -214,10 +215,30 @@ export function createProject(p: Partial<Project> & { title: string }): string {
   const id = uid();
   const project: Project = {
     id, title: p.title.trim(), outcome: p.outcome?.trim() ?? '', status: p.status ?? 'active', due: p.due ?? null,
-    created: Date.now(), updated: Date.now(), completed: null,
+    created: Date.now(), updated: Date.now(), completed: null, ...(p.sequential ? { sequential: true } : {}),
   };
   emit('project.create', project);
   return id;
+}
+
+/** Offene nächste Schritte eines Projekts in Anzeige-Reihenfolge */
+const projectSteps = (pid: string) => Q.projectItems(pid).filter((i) => i.list === 'next');
+
+/** Schritt in der Projektansicht an eine neue Position ziehen (eigene Reihenfolge). */
+export function moveProjectItem(pid: string, id: string, toIndex: number) {
+  const patches = reorderPatches(projectSteps(pid), id, toIndex);
+  batch(() => patches.forEach((p) => patchItem(p.id, { order: p.order })));
+}
+
+/** Eigene Reihenfolge verwerfen: wieder nach Frist. */
+export function resetProjectOrder(pid: string) {
+  batch(() => Q.projectItems(pid).forEach((i) => { if (i.order != null) patchItem(i.id, { order: null }); }));
+}
+
+/** Neuer Schritt im Projekt; bei eigener Reihenfolge nach Frist eingeordnet. */
+export function addProjectStep(pid: string, title: string, extra: Partial<Item> = {}): string {
+  const order = orderForNew(projectSteps(pid), extra.due ?? null);
+  return capture(title, { list: 'next', projectId: pid, ...extra, ...(order !== null ? { order } : {}) });
 }
 
 export function patchProject(id: string, patch: Partial<Project>) {

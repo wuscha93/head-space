@@ -203,7 +203,8 @@ button.due:hover { border-color: var(--line); background: var(--surface); }
 .quick-dates { display: flex; flex-wrap: wrap; gap: var(--s2); }
 
 @media (max-width: 560px) {
-  .row-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* Handy: Kontext ist meist nur ein Symbol, damit die Daten Platz haben */
+  .row-meta { grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr) minmax(0, 1fr); }
   .row-meta.proj-meta { grid-template-columns: 6.75rem minmax(0, 1fr); }
   .slot-rest { grid-column: 1 / -1; }
   .slot-rest:empty { display: none; }
@@ -485,3 +486,57 @@ h2.section .ctx-line .ico { color: var(--ink); }
 .filter.filter-ctx .ctx-badge { color: inherit; }
 /* Einstellungen: Kontextliste */
 .ctx-list .ctx-line { font-size: 0.9375rem; }
+
+/* ---------- Daten: Frist (Fahne), Nachfassen (Glocke), Erst ab (Sanduhr) mit kleinem Titel ---------- */
+.row-meta { align-items: end; }
+.slot.has-cap { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.slot .cap {
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); line-height: 1; padding-left: 0.5rem; white-space: nowrap;
+}
+.chip.date.rem { background: transparent; border: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent); color: var(--ink); min-height: 1.6rem; }
+.chip.date.rem.due { border-color: var(--warn); color: var(--warn); background: transparent; font-weight: 600; }
+/* Datums-Boxen: halb so stark gerundet wie die Karte (12px) */
+.due, .chip.date, .chip[class*="due-"] { border-radius: 6px; }
+.label-ico { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+/* iPad/Safari: Datumsfelder nicht breiter als ihre Spalte, Text links */
+input[type=date] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; display: block; text-align: left; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; }
+.field { min-width: 0; }
+.grid2 > .field, .grid3 > .field { overflow: hidden; }
+
+/* Spracheingabe vorerst aus */
+html.voice-off .fab-mic { display: none; }
+
+/* ---------- Projektansicht: Alle / Nur die nächste, Ziehen, Konflikte ---------- */
+.section-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s5) 0 var(--s2); }
+.section-row h2.section { margin: 0; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg { border: 0; background: none; padding: 0.4rem 0.75rem; font-size: 0.8125rem; cursor: pointer; color: var(--muted); }
+.seg + .seg { border-left: 1px solid var(--line); }
+.seg.is-active { background: var(--ink); color: var(--paper); font-weight: 600; }
+.seq-hint { margin: 0 0 var(--s2); }
+.drag-handle {
+  flex: none; align-self: stretch; display: grid; place-items: center; width: 2.25rem; margin-right: -0.25rem;
+  border: 0; background: none; color: var(--muted); cursor: grab; touch-action: none; border-radius: 6px;
+}
+.drag-handle:hover, .drag-handle:focus-visible { color: var(--ink); background: var(--sunken); }
+.sortable .row { transition: transform 0.18s ease; }
+.sortable .row.is-dragging { transition: none; z-index: 5; box-shadow: var(--shadow); cursor: grabbing; }
+.sortable.is-sorting { user-select: none; -webkit-user-select: none; }
+.conflict-btn { flex: none; border: 0; background: none; padding: 0.35rem; color: var(--soon); cursor: pointer; display: grid; place-items: center; border-radius: 6px; }
+.conflict-btn:hover { background: var(--soon-soft); }
+.row-eyebrow.up-next { color: var(--ok); }
+.rows .row.is-up-next { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.conflict-list { margin: 0; padding-left: 1.2rem; }
+.conflict-list .muted { color: var(--muted); }
+
+/* Neuer Schritt im Projekt: Frist gleich mitwählen */
+.step-due { position: relative; display: flex; flex: none; }
+.step-due-btn { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); padding-inline: 0.75rem; align-self: stretch; }
+.step-due-btn.has-date { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.step-due-btn.due-overdue, .step-due-btn.due-today { color: var(--warn); }
+.step-due-btn.due-soon { color: var(--soon); }
+.step-due-input { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; min-height: 0 !important; padding: 0 !important; }
+.step-due-input.is-open { position: static; opacity: 1; pointer-events: auto; width: 10rem; }

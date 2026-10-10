@@ -24,7 +24,7 @@ const FAKE = `
 `;
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1180, height: 820 } });
-await ctx.addInitScript(FAKE);
+await ctx.addInitScript(FAKE + `; localStorage.setItem('kopf-frei-voice-enabled', '1');`); // Spracheingabe ist seit 0.8 ausgeschaltet; für diese Tests ein
 const page = harden(await ctx.newPage());
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -127,7 +127,7 @@ ok(await page.locator('#modal').isHidden(), 'Immer erlaubt: keine Nachfrage mehr
 
 // D: Browser ohne Spracherkennung
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
-await ctx2.addInitScript(`delete window.SpeechRecognition; delete window.webkitSpeechRecognition;`);
+await ctx2.addInitScript(`delete window.SpeechRecognition; delete window.webkitSpeechRecognition; localStorage.setItem('kopf-frei-voice-enabled', '1');`);
 const p2 = harden(await ctx2.newPage()); p2.on('pageerror', (e) => errors.push('p2: ' + e.message));
 await p2.goto(URL); await p2.waitForSelector('#capture-input');
 await p2.click('#main .mic');
@@ -138,7 +138,7 @@ await p2.screenshot({ path: SH + '/v5-phone.png' });
 ok(await p2.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Handy: kein horizontales Scrollen');
 // E: Absturz-Schutz – nach einem Absturz bei der Abfrage wird nicht mehr gefragt
 const ctx3 = await browser.newContext();
-await ctx3.addInitScript(FAKE + `; window.__called = false; window.SpeechRecognition.available = async () => { window.__called = true; return 'available'; }; localStorage.setItem('kopf-frei-voice-probe', 'pending');`);
+await ctx3.addInitScript(FAKE + `; window.__called = false; window.SpeechRecognition.available = async () => { window.__called = true; return 'available'; }; localStorage.setItem('kopf-frei-voice-probe', 'pending'); localStorage.setItem('kopf-frei-voice-enabled', '1');`);
 const p3 = harden(await ctx3.newPage()); await p3.goto(URL); await p3.waitForSelector('#capture-input');
 await p3.click('#main .mic'); await p3.waitForSelector('[data-action=voice-once]');
 ok(await p3.evaluate(() => window.__called === false), 'Absturz-Schutz: keine erneute Abfrage, direkt Nachfrage');

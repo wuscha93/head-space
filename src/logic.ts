@@ -49,16 +49,83 @@ export const byCreated = (a: Item, b: Item) => a.created - b.created;
 export const byDue = (a: Item, b: Item) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || byCreated(a, b);
 export const isOpen = (i: Item) => i.list !== 'done' && i.list !== 'trash';
 
+/** Projektschritte: eigene Reihenfolge zuerst, Einträge ohne Position danach nach Frist. */
+export const byProjectOrder = (a: Item, b: Item) => {
+  const ao = a.order ?? null, bo = b.order ?? null;
+  if (ao !== null && bo !== null) return ao - bo || byDue(a, b);
+  if (ao !== null) return -1;
+  if (bo !== null) return 1;
+  return byDue(a, b);
+};
+
+/**
+ * Neue Positionen nach dem Ziehen. items = aktuelle Anzeige-Reihenfolge.
+ * Haben alle schon eine Position, ändert sich nur der verschobene Eintrag (Mitte zwischen den Nachbarn);
+ * sonst werden alle in Tausenderschritten neu nummeriert.
+ */
+export function reorderPatches(items: Item[], id: string, toIndex: number): { id: string; order: number }[] {
+  const from = items.findIndex((i) => i.id === id);
+  if (from < 0) return [];
+  const arr = items.filter((i) => i.id !== id);
+  const to = Math.max(0, Math.min(toIndex, arr.length));
+  arr.splice(to, 0, items[from]);
+  const allOrdered = items.every((i) => typeof i.order === 'number');
+  if (allOrdered) {
+    if (to === from) return [];
+    const prev = arr[to - 1]?.order, next = arr[to + 1]?.order;
+    let order: number;
+    if (prev != null && next != null) order = (prev + next) / 2;
+    else if (next != null) order = next - 1000;
+    else order = (prev ?? 0) + 1000;
+    if (prev == null || next == null || Math.abs(next - prev) > 1e-6) return [{ id, order }];
+  }
+  return arr.map((it, i) => ({ id: it.id, order: (i + 1) * 1000 })).filter((p, i) => arr[i].order !== p.order);
+}
+
+/** Position für einen neuen Schritt bei eigener Reihenfolge; null ohne eigene Reihenfolge (dann gilt die Frist). */
+export function orderForNew(items: Item[], due: string | null): number | null {
+  const ordered = items.filter((i) => typeof i.order === 'number');
+  if (!ordered.length) return null;
+  // direkt nach dem letzten Schritt mit gleicher oder früherer Frist; ohne Frist ans Ende
+  let idx = ordered.length;
+  if (due) { idx = 0; ordered.forEach((i, k) => { if (i.due && i.due <= due) idx = k + 1; }); }
+  const prev = ordered[idx - 1]?.order ?? null, next = ordered[idx]?.order ?? null;
+  if (prev !== null && next !== null) return (prev + next) / 2;
+  if (next !== null) return next - 1000;
+  return (prev ?? 0) + 1000;
+}
+
+/**
+ * Konflikte zwischen eigener Reihenfolge und Fristen: ein Eintrag steht hinter Einträgen
+ * mit späterer Frist. Ergebnis: Eintrag → die Einträge davor, die stören.
+ */
+export function orderConflicts(items: Item[]): Map<string, Item[]> {
+  const out = new Map<string, Item[]>();
+  items.forEach((it, i) => {
+    if (!it.due) return;
+    const above = items.slice(0, i).filter((o) => o.due && o.due > it.due!);
+    if (above.length) out.set(it.id, above);
+  });
+  return out;
+}
+
 export const Q = {
   inbox: () => all().filter((i) => i.list === 'inbox').sort(byCreated),
   resurfaced: () => all().filter((i) => i.list === 'someday' && i.tickler && i.tickler <= today()).sort(byCreated),
-  next: () =>
-    all().filter((i) => {
+  next: () => {
+    const base = all().filter((i) => {
       if (i.list !== 'next') return false;
       if (i.tickler && i.tickler > today()) return false;
       const p = project(i.projectId);
       return !p || p.status === 'active';
-    }).sort(byDue),
+    });
+    // Schrittweise Projekte: nur der oberste sichtbare Schritt
+    const first = new Map<string, Item>();
+    for (const i of [...base].sort(byProjectOrder)) {
+      if (i.projectId && project(i.projectId)?.sequential && !first.has(i.projectId)) first.set(i.projectId, i);
+    }
+    return base.filter((i) => !i.projectId || !project(i.projectId)?.sequential || first.get(i.projectId) === i).sort(byDue);
+  },
   dueItems: () => all().filter((i) => i.due && isOpen(i)).sort(byDue),
   dueProjects: () => [...S.state.projects.values()].filter((p) => !p.deleted && p.due && (p.status === 'active' || p.status === 'someday'))
     .sort((a, b) => a.due!.localeCompare(b.due!)),
@@ -74,8 +141,8 @@ export const Q = {
   trash: () => all().filter((i) => i.list === 'trash'),
   projects: (status: Project['status']) =>
     [...S.state.projects.values()].filter((p) => !p.deleted && p.status === status).sort((a, b) => a.title.localeCompare(b.title, 'de')),
-  /** Schritte eines Projekts: früheste Frist zuoberst, ohne Datum danach (in Erfassungsreihenfolge) */
-  projectItems: (pid: string) => all().filter((i) => i.projectId === pid).sort(byDue),
+  /** Schritte eines Projekts: eigene Reihenfolge, sonst früheste Frist zuoberst, ohne Datum danach */
+  projectItems: (pid: string) => all().filter((i) => i.projectId === pid).sort(byProjectOrder),
   /** GTD-Regel: Jedes aktive Projekt braucht einen nächsten Schritt (oder wartet auf jemanden). */
   stalled: (p: Project) => !all().some((i) => i.projectId === p.id && (i.list === 'next' || i.list === 'waiting')),
 };

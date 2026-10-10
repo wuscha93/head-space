@@ -1,0 +1,138 @@
+// 0.8: Spracheingabe aus, Daten mit Symbol und Titel, Bearbeiten auf dem iPad, Projekt: Frist beim
+// Hinzufügen, Ziehen (echte Touch-Ereignisse), Konflikt-Warnung, „Nur die nächste“
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import { harden } from './helpers.mjs';
+const SH = process.argv[2]; const URL = 'http://localhost:4173/test/';
+const errors = []; const ok = (c, m) => { if (!c) errors.push('FAIL ' + m); else console.log('ok  ' + m); };
+const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+const browser = await chromium.launch();
+// iPad hochkant, mit Touch
+const ctx = await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+const page = harden(await ctx.newPage());
+page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+const cdp = await ctx.newCDPSession(page);
+const rowOf = (t) => page.locator('#main li.row', { has: page.locator('.row-title', { hasText: t }) });
+const go = async (hash) => { await page.goto(URL + hash); await page.waitForSelector('#main h1'); };
+
+/** Echte Touch-Geste: Finger auf den Griff, in Schritten nach oben/unten ziehen, loslassen */
+async function touchDrag(handle, dy) {
+  const b = await handle.boundingBox();
+  const x = b.x + b.width / 2, y = b.y + b.height / 2;
+  const tp = (yy) => [{ x, y: yy, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tp(y) });
+  for (let i = 1; i <= 12; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: tp(y + (dy * i) / 12) }); await page.waitForTimeout(16); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(250);
+}
+
+// 1. Spracheingabe ausgeschaltet: nirgends ein Mikrofon
+await go('');
+ok((await page.locator('.mic').count()) === 0, 'Inbox: kein Mikrofon');
+ok(!(await page.locator('.fab-mic').isVisible()), 'Kein schwebender Mikrofon-Knopf');
+await page.locator('.fab:not(.fab-mic)').tap(); await page.waitForSelector('#quick-input');
+ok((await page.locator('#modal .mic').count()) === 0, 'Schnellerfassung: kein Mikrofon');
+await page.locator('#modal .sheet-head [data-action=close]').tap();
+await go('#settings'); await page.waitForSelector('.panel');
+ok(!(await page.locator('#main').innerText()).includes('Spracheingabe'), 'Einstellungen: kein Bereich Spracheingabe');
+
+// 2. Zwei Daten: Symbol + Titel, gestrichelte Box fürs Nachfassen, Rundung wie verkleinerte Karte
+await go('#waiting'); await page.waitForSelector('#main .row');
+const lisa = rowOf('Antwort von Lisa');
+ok((await lisa.locator('.slot-rem .cap').innerText()).toLowerCase() === 'nachfassen', 'Nachfassen mit Titel');
+ok((await lisa.locator('.slot-rem .chip.rem').count()) === 1, 'Nachfassen als eigene Box');
+await lisa.locator('[data-action=due-pick]').tap();
+await page.evaluate((v) => { const el = document.querySelector('.due-input'); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, iso(3));
+await page.waitForSelector('#main .slot-due .cap');
+ok((await lisa.locator('.slot-due .cap').innerText()).toLowerCase() === 'fällig', 'Frist mit Titel „Fällig“');
+const r = await lisa.locator('.slot-due .due').evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
+ok(r === '6px', `Datums-Box gerundet wie die Karte, halb so stark (${r})`);
+const dash = await lisa.locator('.chip.rem').evaluate((el) => getComputedStyle(el).borderTopStyle);
+ok(dash === 'dashed', 'Nachfassen gestrichelt, Frist gefüllt');
+await page.screenshot({ path: SH + '/p1-zwei-daten.png' });
+
+// 3. Bearbeiten auf dem iPad: Datumsfelder bleiben in ihrer Spalte, Hinweis passt zur Liste
+await lisa.locator('.row-title').tap(); await page.waitForSelector('#e-due');
+for (const id of ['#e-due', '#e-tickler']) {
+  const [f, fld] = await Promise.all([page.locator(id).boundingBox(), page.locator(id).locator('xpath=..').boundingBox()]);
+  ok(f.x >= fld.x - 0.5 && f.x + f.width <= fld.x + fld.width + 0.5, `${id} bleibt in seiner Spalte`);
+}
+ok(await page.locator('#e-due').evaluate((el) => getComputedStyle(el).webkitAppearance === 'none' || getComputedStyle(el).appearance === 'none'), 'Datumsfeld ohne Safari-Eigenbreite');
+const hint = await page.locator('#modal .hint').first().innerText();
+ok(hint.includes('Nachfassen am') && !hint.includes('Erst ab'), 'Hinweis spricht von „Nachfassen am“');
+await page.screenshot({ path: SH + '/p2-bearbeiten-ipad.png' });
+await page.locator('#modal .sheet-head [data-action=close]').tap();
+
+// 4. Projekt: neuer Schritt mit Frist (Fahne statt Mikrofon)
+await go('#projects'); await page.locator('#main .row-title', { hasText: 'Velo winterfit' }).tap();
+await page.waitForSelector('#step-input');
+ok((await page.locator('form[data-form=project-step] .mic').count()) === 0, 'Projekt: kein Mikrofon');
+await page.evaluate(() => { HTMLInputElement.prototype.showPicker = function () { window.__picker = this; }; });
+await page.fill('#step-input', 'Licht montieren');
+await page.locator('[data-action=step-due-pick]').tap();
+await page.evaluate((v) => { const el = window.__picker; el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, iso(1));
+ok((await page.locator('.step-due-text').innerText()).includes('.'), 'Gewählte Frist neben der Fahne');
+await page.locator('form[data-form=project-step] button[type=submit]').tap();
+await page.waitForSelector('#main .row-title:has-text("Licht montieren")');
+ok((await rowOf('Licht montieren').locator('.slot-due .due').innerText()).includes('.'), 'Neuer Schritt hat die Frist');
+ok((await page.locator('.step-due-text').innerText()) === '', 'Frist-Feld nach dem Hinzufügen leer');
+const order = async () => (await page.locator('[data-sortable] .row-title').allInnerTexts()).map((t) => t.split(' ')[0]);
+ok((await order()).join(',') === 'Licht,Velomechaniker,Kette', `Nach Frist eingeordnet (${(await order()).join(',')})`);
+ok((await page.locator('.conflict-btn').count()) === 0, 'Nach Frist sortiert: keine Warnung');
+
+// 5. Ziehen mit dem Finger: Velomechaniker (später fällig) nach oben → Warnung bei Licht (früher fällig)
+const h = await rowOf('Velomechaniker').locator('.drag-handle').boundingBox();
+const top = await rowOf('Licht montieren').boundingBox();
+await touchDrag(rowOf('Velomechaniker').locator('.drag-handle'), top.y - h.y - 10);
+ok((await order()).join(',') === 'Velomechaniker,Licht,Kette', `Gezogen: eigene Reihenfolge (${(await order()).join(',')})`);
+ok((await rowOf('Licht montieren').locator('.conflict-btn').count()) === 1, 'Warndreieck beim früher fälligen Schritt');
+ok((await rowOf('Velomechaniker').locator('.conflict-btn').count()) === 0, 'Kein Warndreieck beim anderen');
+ok(await rowOf('Licht montieren').locator('.conflict-btn').evaluate((el) => getComputedStyle(el).color) === 'rgb(166, 86, 0)', 'Warndreieck orange');
+await page.screenshot({ path: SH + '/p3-konflikt.png' });
+await page.reload(); await page.waitForSelector('[data-sortable]');
+ok((await order()).join(',') === 'Velomechaniker,Licht,Kette', 'Reihenfolge bleibt nach Neuladen');
+
+// Erklärung
+await rowOf('Licht montieren').locator('.conflict-btn').tap();
+await page.waitForSelector('#modal .conflict-list');
+const expl = await page.locator('#modal').innerText();
+ok(expl.includes('Licht montieren') && expl.includes('Velomechaniker'), 'Erklärung nennt beide Schritte');
+await page.screenshot({ path: SH + '/p4-erklaerung.png' });
+await page.locator('#modal [data-action=close].btn').tap();
+ok(await page.locator('#modal').isHidden(), 'Erklärung schliesst, Reihenfolge bleibt (manuell dominiert)');
+ok((await order())[0] === 'Velomechaniker', 'Manuelle Reihenfolge unverändert');
+
+// Tastatur: Pfeil runter verschiebt
+await rowOf('Velomechaniker').locator('.drag-handle').focus();
+await page.keyboard.press('ArrowDown');
+ok((await order()).join(',') === 'Licht,Velomechaniker,Kette', 'Pfeiltaste verschiebt');
+
+// 6. Nur die nächste: in Nächste Schritte nur der oberste Schritt des Projekts
+await page.locator('[data-action=project-seq][data-seq="1"]').tap();
+ok((await page.locator('[data-sortable] .row').first().locator('.up-next').count()) === 1, 'Oberster Schritt als „Als Nächstes“ markiert');
+await go('#next'); await page.waitForSelector('#main .row');
+const nextTitles = await page.locator('#main .row-title').allInnerTexts();
+ok(nextTitles.some((t) => t.includes('Licht')) && !nextTitles.some((t) => t.includes('Velomechaniker')) && !nextTitles.some((t) => t.includes('Kette')), 'Nächste Schritte: nur der oberste Schritt des Projekts');
+ok(nextTitles.some((t) => t.includes('Zahnarzt')), 'Andere Aufgaben bleiben sichtbar');
+await rowOf('Licht montieren').locator('.check').tap();
+await page.waitForTimeout(400);
+const after = await page.locator('#main .row-title').allInnerTexts();
+ok(after.some((t) => t.includes('Velomechaniker')), 'Nach dem Erledigen rückt der nächste Schritt nach');
+await go('#projects'); await page.locator('#main .row-title', { hasText: 'Velo winterfit' }).tap(); await page.waitForSelector('[data-sortable]');
+await page.locator('[data-action=project-seq][data-seq="0"]').tap();
+await go('#next'); await page.waitForSelector('#main .row');
+ok((await page.locator('#main .row-title', { hasText: 'Kette' }).count()) === 1, 'Alle: wieder alle Schritte');
+
+// Handy: kein horizontales Scrollen in der Projektansicht
+const phone = harden(await (await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage());
+await phone.goto(URL + '#projects'); await phone.waitForSelector('#main .row');
+await phone.locator('#main .row-title', { hasText: 'Velo winterfit' }).tap(); await phone.waitForSelector('#step-input');
+ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Handy: kein horizontales Scrollen');
+const dueTxt = phone.locator('#main li.row', { has: phone.locator('.row-title', { hasText: 'Velomechaniker' }) }).locator('.slot-due .due span');
+ok(await dueTxt.evaluate((el) => el.scrollWidth <= el.clientWidth), 'Handy: Datum mit Griff nicht abgeschnitten');
+await phone.screenshot({ path: SH + '/p5-projekt-handy.png', fullPage: true });
+
+await browser.close();
+if (errors.length) { console.log(errors.join('\n')); process.exit(1); }
+console.log('Alle Prüfungen bestanden');
