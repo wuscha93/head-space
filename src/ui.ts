@@ -15,7 +15,7 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
 import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, orderConflicts, project, projColor, today, toClarify, type DueState } from './logic';
-import { ctxBadge, ctxLabel, ctxWithName } from './icons';
+import { ctxBadge, ctxLabel, ctxWithName, itemSymbol, noneBadge, waitBadge } from './icons';
 export { today } from './logic';
 
 // ---------- Hilfsfunktionen ----------
@@ -127,10 +127,11 @@ function syncIndicator(): string {
 
 // ---------- Bausteine ----------
 
-/** Frist (Fahne), Nachfassen (Glocke), Erst ab (Sanduhr): auf einen Blick unterscheidbar */
+/** Frist (Fahne), Nachfassen (Glocke), Erst ab (Mond „schlummern“): auf einen Blick unterscheidbar */
 const FLAG_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.5 14.5V2M3.5 2.5h8.2l-1.6 3 1.6 3H3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 const BELL_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1.2 1.2H2.8zM6.6 14.2a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-const HOUR_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 2h8M4 14h8M5 2c0 3 6 3 6 6s-6 3-6 6M11 2c0 3-6 3-6 6s6 3 6 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+const MOON_SVG = `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M9.8 2.6a5.6 5.6 0 1 0 3.6 8.6 4.6 4.6 0 0 1-3.6-8.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 2.2h2.6L11 5h2.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const NOTE_SVG = `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3M5.5 8.5h5M5.5 11h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 const WARN_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.3 3.9L2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" fill="currentColor"/><path d="M12 9v4.6" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.25" fill="var(--surface)"/></svg>`;
 const GRIP_SVG = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="5.5" cy="3.5" r="1.3"/><circle cx="10.5" cy="3.5" r="1.3"/><circle cx="5.5" cy="8" r="1.3"/><circle cx="10.5" cy="8" r="1.3"/><circle cx="5.5" cy="12.5" r="1.3"/><circle cx="10.5" cy="12.5" r="1.3"/></g></svg>`;
 
@@ -141,10 +142,9 @@ const GRIP_SVG = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="t
 function dueSlot(kind: 'item' | 'project', id: string, due: string | null | undefined, editable = true): string {
   const st = due ? dueState(due) : 'none';
   const text = !due ? '' : st === 'today' ? 'Heute' : fmtDate(due);
-  const cap = due ? '<span class="cap" aria-hidden="true">Fällig</span>' : '';
-  if (!editable) return `<span class="slot slot-due${due ? ' has-cap' : ''}">${due ? `${cap}<span class="due due-${st}">${FLAG_SVG}<span>${text}</span></span>` : ''}</span>`;
+  if (!editable) return `<span class="slot slot-due">${due ? `<span class="due due-${st}">${FLAG_SVG}<span>${text}</span></span>` : ''}</span>`;
   const label = !due ? 'Frist setzen' : `${st === 'overdue' ? 'Überfällig seit' : 'Fällig am'} ${fmtDate(due)}, ändern`;
-  return `<span class="slot slot-due${due ? ' has-cap' : ''}">${cap}
+  return `<span class="slot slot-due">
     <button type="button" class="due due-${st}" data-action="due-pick" data-kind="${kind}" data-id="${id}" title="${label}" aria-label="${label}">${FLAG_SVG}${text ? `<span>${text}</span>` : ''}</button>
     <input type="date" class="due-input" tabindex="-1" aria-hidden="true" data-kind="${kind}" data-id="${id}" value="${due ?? ''}">
   </span>`;
@@ -156,22 +156,27 @@ function dueSlot(kind: 'item' | 'project', id: string, due: string | null | unde
  */
 function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): string {
   const open = isOpen(it) && it.list !== 'reference';
-  const ctx = it.context ? ctxBadge(it.context) : '';
+  // Kontext-Platz: Sanduhr bei „Warten auf“, sonst Kontext oder Fragezeichen
+  const sym = itemSymbol(it);
+  const ctx = sym === 'waiting' ? waitBadge(it.waitingFor) : sym === 'none' ? noneBadge() : sym ? ctxBadge(sym) : '';
   let rem = '';
   if (open && it.tickler) {
+    // gleiche Box wie die Frist; Nachfassen nach Dringlichkeit gefärbt, „Erst ab“ neutral
     const waiting = it.list === 'waiting';
     const label = `${waiting ? 'Nachfassen am' : 'Erst ab'} ${fmtDate(it.tickler)}`;
-    rem = `<span class="cap" aria-hidden="true">${waiting ? 'Nachfassen' : 'Erst ab'}</span><span class="chip date rem${waiting && it.tickler <= today() ? ' due' : ''}" title="${label}" aria-label="${label}">${waiting ? BELL_SVG : HOUR_SVG}${fmtDate(it.tickler)}</span>`;
+    const st = waiting ? dueState(it.tickler) : 'later';
+    const txt = waiting && st === 'today' ? 'Heute' : fmtDate(it.tickler);
+    rem = `<span class="due rem rem-${waiting ? 'follow' : 'defer'} due-${st}" title="${label}" aria-label="${label}">${waiting ? BELL_SVG : MOON_SVG}<span>${txt}</span></span>`;
   }
   const rest: string[] = [];
   const p = project(it.projectId);
   if (p && opts.project !== false) rest.push(`<span class="chip proj"><i class="pdot" aria-hidden="true"></i>${esc(p.title)}</span>`);
-  if (it.waitingFor) rest.push(`<span class="chip">wartet auf ${esc(it.waitingFor)}</span>`);
+  if (it.waitingFor) rest.push(`<span class="chip wait-chip">wartet auf ${esc(it.waitingFor)}</span>`);
   if (opts.list && it.list !== 'next') rest.push(`<span class="chip">${LIST_LABEL[it.list]}</span>`);
-  if (it.notes && it.list !== 'reference') rest.push(`<span class="chip" title="Hat Notizen">Notiz</span>`);
+  if (it.notes && it.list !== 'reference') rest.push(`<span class="chip note-chip" title="Hat Notizen">Notiz</span><span class="note-ico" title="Hat Notizen" aria-hidden="true">${NOTE_SVG}</span>`);
   if (!open && !ctx && !rest.length) return '';
   return `<div class="row-meta">
-    <span class="slot slot-ctx">${ctx}</span>${open ? dueSlot('item', it.id, it.due) : '<span class="slot slot-due"></span>'}<span class="slot slot-rem${rem ? ' has-cap' : ''}">${rem}</span><span class="slot slot-rest">${rest.join('')}</span>
+    <span class="slot slot-ctx">${ctx}</span>${open ? dueSlot('item', it.id, it.due) : '<span class="slot slot-due"></span>'}<span class="slot slot-rem">${rem}</span><span class="slot slot-rest">${rest.join('')}</span>
   </div>`;
 }
 
@@ -939,7 +944,7 @@ function editHtml(id: string): string {
         <div class="field"><label for="e-proj">Projekt</label><select id="e-proj" name="projectId">${projectOptions(it.projectId)}</select></div>
         <div class="field"><label for="e-wait">Wartet auf</label><input id="e-wait" name="waitingFor" value="${esc(it.waitingFor ?? '')}" placeholder="Person"></div>
         <div class="field"><label for="e-due" class="label-ico">${FLAG_SVG}Fällig am</label><input id="e-due" name="due" type="date" value="${it.due ?? ''}"></div>
-        <div class="field"><label for="e-tickler" class="label-ico">${it.list === 'waiting' ? `${BELL_SVG}Nachfassen am` : `${HOUR_SVG}Erst ab`}</label><input id="e-tickler" name="tickler" type="date" value="${it.tickler ?? ''}"></div>
+        <div class="field"><label for="e-tickler" class="label-ico">${it.list === 'waiting' ? `${BELL_SVG}Nachfassen am` : `${MOON_SVG}Erst ab`}</label><input id="e-tickler" name="tickler" type="date" value="${it.tickler ?? ''}"></div>
       </div>
       <p class="hint">${it.list === 'waiting'
         ? '„Fällig am“ ist die Frist. „Nachfassen am“ erinnert dich, bei der Person nachzufragen.'

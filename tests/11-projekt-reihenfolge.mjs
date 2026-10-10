@@ -37,19 +37,20 @@ await page.locator('#modal .sheet-head [data-action=close]').tap();
 await go('#settings'); await page.waitForSelector('.panel');
 ok(!(await page.locator('#main').innerText()).includes('Spracheingabe'), 'Einstellungen: kein Bereich Spracheingabe');
 
-// 2. Zwei Daten: Symbol + Titel, gestrichelte Box fürs Nachfassen, Rundung wie verkleinerte Karte
+// 2. Ereignisbox (0.9): ohne Titel, Nachfassen in derselben Box wie Fällig, Sanduhr bei „Warten auf“, alles auf einer Linie
 await go('#waiting'); await page.waitForSelector('#main .row');
 const lisa = rowOf('Antwort von Lisa');
-ok((await lisa.locator('.slot-rem .cap').innerText()).toLowerCase() === 'nachfassen', 'Nachfassen mit Titel');
-ok((await lisa.locator('.slot-rem .chip.rem').count()) === 1, 'Nachfassen als eigene Box');
+ok((await lisa.locator('.cap').count()) === 0, 'Keine Titel über den Daten');
+ok((await lisa.locator('.slot-ctx .ctx-wait').count()) === 1, 'Warten auf: Sanduhr im Kontext-Platz');
 await lisa.locator('[data-action=due-pick]').tap();
 await page.evaluate((v) => { const el = document.querySelector('.due-input'); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, iso(3));
-await page.waitForSelector('#main .slot-due .cap');
-ok((await lisa.locator('.slot-due .cap').innerText()).toLowerCase() === 'fällig', 'Frist mit Titel „Fällig“');
-const r = await lisa.locator('.slot-due .due').evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
-ok(r === '6px', `Datums-Box gerundet wie die Karte, halb so stark (${r})`);
-const dash = await lisa.locator('.chip.rem').evaluate((el) => getComputedStyle(el).borderTopStyle);
-ok(dash === 'dashed', 'Nachfassen gestrichelt, Frist gefüllt');
+await page.waitForSelector('#main .slot-due .due-soon');
+const style = (loc) => loc.evaluate((el) => { const c = getComputedStyle(el); return [c.borderTopStyle, c.borderTopLeftRadius, c.height, c.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'leer' : 'gefüllt'].join(' '); });
+const fs = await style(lisa.locator('.slot-due .due')), ns = await style(lisa.locator('.slot-rem .due.rem'));
+ok(fs.split(' ').slice(0, 3).join() === ns.split(' ').slice(0, 3).join() && ns.endsWith('gefüllt'), `Nachfassen gleiche Box wie Fällig (${fs} / ${ns})`);
+ok(fs.includes('6px'), 'Datums-Boxen halb so stark gerundet wie die Karte');
+const mids = await lisa.locator('.row-meta .slot-ctx .ico, .row-meta .slot-due .due, .row-meta .slot-rem .due').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; }));
+ok(mids.length === 3 && Math.max(...mids) - Math.min(...mids) <= 1.5, `Symbol und Boxen auf einer Linie (${mids.map((m) => m.toFixed(1)).join(', ')})`);
 await page.screenshot({ path: SH + '/p1-zwei-daten.png' });
 
 // 3. Bearbeiten auf dem iPad: Datumsfelder bleiben in ihrer Spalte, Hinweis passt zur Liste

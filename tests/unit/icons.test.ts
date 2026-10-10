@@ -1,6 +1,6 @@
 // Kontext-Symbole und Anzeige der Kontextnamen (ohne „@“)
 import { describe, expect, test } from 'bun:test';
-import { ctxLabel, ctxIconKey, ctxIcon, ctxBadge, ICON_PATHS } from '../../src/icons';
+import { ctxLabel, ctxIconKey, ctxIcon, ctxBadge, ICON_PATHS, itemSymbol } from '../../src/icons';
 
 describe('Kontextname', () => {
   test('Anzeige ohne @, gespeicherter Wert bleibt unverändert', () => {
@@ -43,5 +43,22 @@ describe('Symbole', () => {
   test('Namen werden maskiert', () => {
     expect(ctxBadge('@<b>')).toContain('&lt;b&gt;');
     expect(ctxBadge('@<b>')).not.toContain('<b>');
+  });
+});
+
+describe('Symbol im Kontext-Platz', () => {
+  const it = (o: Record<string, unknown>) => ({ list: 'next', context: null, ...o } as any);
+  test('Warten auf: immer die Sanduhr, auch mit Kontext', () => {
+    expect(itemSymbol(it({ list: 'waiting' }))).toBe('waiting');
+    expect(itemSymbol(it({ list: 'waiting', context: '@Telefon' }))).toBe('waiting');
+  });
+  test('mit Kontext: der Kontext; offen ohne Kontext: Fragezeichen', () => {
+    expect(itemSymbol(it({ context: '@Büro' }))).toBe('@Büro');
+    expect(itemSymbol(it({}))).toBe('none');
+    expect(itemSymbol(it({ list: 'someday' }))).toBe('none');
+  });
+  test('Inbox, Referenz, Erledigt, Papierkorb ohne Kontext: kein Symbol', () => {
+    for (const list of ['inbox', 'reference', 'done', 'trash']) expect(itemSymbol(it({ list }))).toBeNull();
+    expect(itemSymbol(it({ list: 'done', context: '@Büro' }))).toBe('@Büro');
   });
 });

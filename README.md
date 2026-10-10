@@ -8,14 +8,15 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in die Live-App.
 
-## Funktionen (Version 0.8.0)
+## Funktionen (Version 0.9.0)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
 - **Kontexte als Symbole** (Computer, Telefon, Unterwegs, Zuhause, Büro, Besprechung; eigene Kontexte mit Etikett und Namen)
 - **Listen**: Nächste Schritte (Kontext-Filter), Fristen, Projekte, Warten auf, Wiedervorlage, Irgendwann/Vielleicht, Referenz, Erledigt, Papierkorb
 - **Projekte** mit Ziel, Frist und Farbe; Schritte nach Frist sortiert oder per Griff ⋮⋮ selbst geordnet (Warndreieck, wenn die Reihenfolge einer Frist widerspricht); Wahl „Alle“ oder „Nur die nächste“ für die Liste Nächste Schritte; Frist gleich beim Hinzufügen; beim Erledigen des letzten Schritts fragt die App nach dem nächsten
-- **Fälligkeitsdatum** (Fahne) direkt in der Karte, **Wiedervorlage** („Erst ab“ mit Sanduhr, „Nachfassen“ mit Glocke), jeweils mit kleinem Titel
+- **Fälligkeitsdatum** (Fahne) direkt in der Karte, **Wiedervorlage** („Nachfassen“ mit Glocke, „Erst ab“ mit Mond), alle in gleichen Boxen auf einer Linie; im Kontext-Platz Sanduhr für „Warten auf“, Fragezeichen ohne Kontext
+- **Handy**: kompakte Karten (alles in einer Zeile unter dem Titel)
 - **Rückgängig** (3 Sekunden) nach Erledigen, Löschen, Verschieben, Klären und Projektstatus
 - **Wischen zum Löschen**: Karte nach links wischen → „Löschen“ (endgültig, ohne Rückgängig). Aufgaben eines gelöschten Projekts bleiben als Einzelaufgaben.
 - **Spracheingabe**: vorerst ausgeschaltet (Code bleibt, für spätere Versionen)
@@ -52,6 +53,7 @@ bun run build.mjs   # baut dist/ und preview/kopf-frei.html
 bun test            # Unit-Tests (Logik, Daten, Kompatibilität, Verschlüsselung, Sync, Sprache)
 tests/run.sh        # alles: Typen, Unit-Tests, End-to-End-Tests (Playwright + Chromium, parallel)
 tests/run.sh 3 10   # Typen, Unit-Tests und nur die End-to-End-Tests 3 und 10 (GitHub prüft immer alles)
+E2E_WEBKIT=1 tests/run.sh   # zusätzlich mit WebKit (Safari-Kern), so läuft es auf GitHub
 ```
 
 Jeder Push wird zuerst vollständig getestet und nur bei Erfolg veröffentlicht (GitHub Actions → GitHub Pages):

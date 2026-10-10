@@ -489,24 +489,39 @@ h2.section .ctx-line .ico { color: var(--ink); }
 /* Einstellungen: Kontextliste */
 .ctx-list .ctx-line { font-size: 0.9375rem; }
 
-/* ---------- Daten: Frist (Fahne), Nachfassen (Glocke), Erst ab (Sanduhr) mit kleinem Titel ---------- */
-.row-meta { align-items: end; }
-.slot.has-cap { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
-.slot .cap {
-  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted); line-height: 1; padding-left: 0.5rem; white-space: nowrap;
-}
-.chip.date.rem { background: transparent; border: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent); color: var(--ink); min-height: 1.6rem; }
-.chip.date.rem.due { border-color: var(--warn); color: var(--warn); background: transparent; font-weight: 600; }
+/* ---------- Daten: Frist (Fahne), Nachfassen (Glocke), Erst ab (Mond) in gleichen Boxen ---------- */
+/* Alles in der Ereignisbox auf einer Linie: Symbole und Boxen gleich hoch, vertikal mittig */
+.row-meta { align-items: center; }
+.slot-ctx { min-height: 1.6rem; }
+.slot-rest .chip { min-height: 1.6rem; }
+.due.rem { cursor: default; }
 /* Datums-Boxen: halb so stark gerundet wie die Karte (12px) */
 .due, .chip.date, .chip[class*="due-"] { border-radius: 6px; }
 .label-ico { display: inline-flex; align-items: center; gap: 0.35rem; }
+.ctx-wait .ico, .ctx-none .ico { color: var(--muted); }
+/* nur in der kompakten Handy-Ansicht */
+.note-ico, .wait-who { display: none; }
+.note-ico { color: var(--muted); align-items: center; }
 
-/* iPad/Safari: Datumsfelder nicht breiter als ihre Spalte, Text links */
-input[type=date] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; display: block; text-align: left; }
-input[type=date]::-webkit-date-and-time-value { text-align: left; }
+/* iPad/Safari: sichtbare Datumsfelder nicht breiter als ihre Spalte, Text links.
+   Nicht für die unsichtbaren Felder hinter der Fahne: dort öffnet Safari sonst keine Auswahl. */
+.field input[type=date] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; display: block; text-align: left; }
+.field input[type=date]::-webkit-date-and-time-value { text-align: left; }
 .field { min-width: 0; }
 .grid2 > .field, .grid3 > .field { overflow: hidden; }
+
+/* Dialoge: alle Felder unter den Notizen gleich gross, zwei gleich breite Spalten */
+.sheet .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sheet .grid2 .field > label { min-height: 1.15rem; display: flex; align-items: center; gap: 0.35rem; }
+.sheet .grid2 input:not([type=checkbox]), .sheet .grid2 select, .sheet .grid3 input:not([type=checkbox]), .sheet .grid3 select {
+  height: 2.75rem; min-height: 2.75rem; padding-top: 0; padding-bottom: 0; box-sizing: border-box;
+}
+.sheet select {
+  -webkit-appearance: none; appearance: none; padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2393a1a1' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 0.85rem center; background-size: 12px 8px;
+}
+@media (max-width: 560px) { .sheet .grid2 { grid-template-columns: minmax(0, 1fr); } }
 
 /* Spracheingabe vorerst aus */
 html.voice-off .fab-mic { display: none; }
@@ -542,3 +557,25 @@ html.voice-off .fab-mic { display: none; }
 .step-due-btn.due-soon { color: var(--soon); }
 .step-due-input { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; min-height: 0 !important; padding: 0 !important; }
 .step-due-input.is-open { position: static; opacity: 1; pointer-events: auto; width: 10rem; }
+
+/* ---------- Handy: kompakte Karten (Variante A) ---------- */
+@media (max-width: 560px) {
+  .rows { gap: 0.35rem; }
+  .rows .row-inner { padding-block: 0.1rem; }
+  .row-main { padding: 0.45rem 0.35rem; gap: 0.25rem; }
+  .row-title { font-size: 1rem; line-height: 1.3; }
+  .row-eyebrow { font-size: 0.625rem; }
+  .check { width: 1.3rem; height: 1.3rem; margin: 0.35rem; }
+  .row-meta, .row-meta.proj-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; min-height: 0; }
+  .row-meta .slot { flex: none; min-height: 0; }
+  .row-meta .slot:empty { display: none; }
+  .row-meta .slot-rest { flex: 0 1 auto; min-width: 0; }
+  .row-meta .slot-rest:not(:has(> :not(.proj, .wait-chip, .note-chip))) { display: none; }
+  .row-meta .due { min-height: 1.35rem; padding: 0.1rem 0.4rem; }
+  .row-meta .due-none { padding-inline: 0.2rem; }
+  .slot-rest .chip { min-height: 1.35rem; }
+  /* „wartet auf Lisa“ → Sanduhr + Name, „Notiz“ → Symbol */
+  .wait-chip, .note-chip { display: none; }
+  .note-ico { display: inline-flex; }
+  .wait-who { display: inline; font-size: 0.8125rem; font-weight: 600; }
+}

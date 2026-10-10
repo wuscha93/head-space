@@ -41,3 +41,24 @@ export function ctxBadge(name: string, size = 22): string {
 /** Symbol und Name nebeneinander, auf einer Linie (Abschnittstitel, Einstellungen) */
 export const ctxWithName = (name: string, size = 20) =>
   `<span class="ctx-line">${ctxIcon(name, size)}<span class="ctx-name">${esc(ctxLabel(name))}</span></span>`;
+
+/** Sanduhr (Warten auf) und Fragezeichen (ohne Kontext), gleicher Strich wie die Kontext-Symbole */
+const HOURGLASS_PATH = '<path d="M6 3h12M6 21h12M7.5 3c0 4.5 9 4.5 9 9s-9 4.5-9 9M16.5 3c0 4.5-9 4.5-9 9s9 4.5 9 9"/>';
+const QUESTION_PATH = '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9v.5"/><circle cx="12" cy="17" r=".6"/>';
+
+/**
+ * Was im Kontext-Platz einer Karte steht: „waiting“ (Sanduhr, auch mit Kontext),
+ * der Kontext, „none“ (Fragezeichen: offen, aber ohne Kontext) oder null (nichts).
+ */
+export function itemSymbol(it: { list: string; context: string | null }): 'waiting' | 'none' | string | null {
+  if (it.list === 'waiting') return 'waiting';
+  if (it.context) return it.context;
+  return ['next', 'someday'].includes(it.list) ? 'none' : null;
+}
+
+/** Sanduhr mit Name der Person (Name nur in der kompakten Handy-Ansicht sichtbar) */
+export const waitBadge = (who: string | null, size = 22) =>
+  `<span class="ctx-badge ctx-wait" title="Warten auf${who ? ` ${esc(who)}` : ''}"><svg class="ico ico-wait" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${HOURGLASS_PATH}</svg><span class="sr-only">Warten auf</span>${who ? `<span class="ctx-name wait-who">${esc(who)}</span>` : ''}</span>`;
+
+export const noneBadge = (size = 22) =>
+  `<span class="ctx-badge ctx-none" title="Ohne Kontext"><svg class="ico ico-none" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${QUESTION_PATH}</svg><span class="sr-only">Ohne Kontext</span></span>`;

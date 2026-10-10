@@ -60,7 +60,7 @@ ok(await page.locator('.callout.warn').isVisible(), 'Warnung: Projekt ohne näch
 await page.screenshot({ path: SH + '/4-project.png' });
 
 await page.click('[data-view=waiting]');
-ok((await page.locator('.chip.due').count()) === 1, 'Warten auf: Nachfassen fällig markiert');
+ok((await page.locator('.slot-rem .due.rem.due-today, .slot-rem .due.rem.due-overdue').count()) === 1, 'Warten auf: Nachfassen fällig markiert (rot, gleiche Box wie Fällig)');
 await page.click('[data-view=tickler]');
 ok((await page.locator('#main .row').count()) === 1, 'Wiedervorlage: Segelkurs');
 await page.click('[data-view=reference]');

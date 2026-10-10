@@ -69,7 +69,7 @@ const a1 = await box('Rechnung', '.slot-ctx'), a2 = await box('Licht testen', '.
 const d1 = await box('Rechnung', '.slot-due'), d2 = await box('Licht testen', '.slot-due');
 const r1 = await box('Rechnung', '.slot-rest'), r2 = await box('Licht testen', '.slot-rest');
 ok(a1 === a2 && d1 === d2 && r1 === r2, `Plätze gleich ausgerichtet (Kontext ${a1}/${a2}, Fällig ${d1}/${d2}, Projekt ${r1}/${r2})`);
-ok((await rowOf('Rechnung').locator('.slot-rem .chip').count()) === 1, 'Erinnerung im eigenen Platz');
+ok((await rowOf('Rechnung').locator('.slot-rem .due.rem').count()) === 1, 'Erinnerung im eigenen Platz');
 await page.screenshot({ path: SH + '/u2-slots.png' });
 
 // 4. Kalendersymbol: Frist direkt setzen
