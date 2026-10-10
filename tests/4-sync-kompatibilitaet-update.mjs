@@ -1,13 +1,14 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 import { harden } from './helpers.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 const SH = process.argv[2]; const BASE = 'http://localhost:4173/';
 const errors = []; const ok = (c, m) => { if (!c) errors.push('FAIL ' + m); else console.log('ok  ' + m); };
 
 // ---------- Simuliertes GitHub ----------
 const files = new Map(); // path -> base64
 let isPrivate = true;
-const shaOf = (p) => Buffer.from(p).toString('hex').slice(0, 40).padEnd(40, '0');
+const shaOf = (p) => createHash('sha1').update(p).digest('hex'); // wie GitHub: eindeutig je Datei (früher: Präfix des Pfads, gleich bei Paketen eines Geräts)
 const bySha = () => new Map([...files.keys()].map((p) => [shaOf(p), p]));
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,PUT,OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify(body) });

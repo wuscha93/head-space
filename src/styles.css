@@ -526,14 +526,7 @@ h2.section .ctx-line .ico { color: var(--ink); }
 /* Spracheingabe vorerst aus */
 html.voice-off .fab-mic { display: none; }
 
-/* ---------- Projektansicht: Alle / Nur die nächste, Ziehen, Konflikte ---------- */
-.section-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s5) 0 var(--s2); }
-.section-row h2.section { margin: 0; }
-.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
-.seg { border: 0; background: none; padding: 0.4rem 0.75rem; font-size: 0.8125rem; cursor: pointer; color: var(--muted); }
-.seg + .seg { border-left: 1px solid var(--line); }
-.seg.is-active { background: var(--ink); color: var(--paper); font-weight: 600; }
-.seq-hint { margin: 0 0 var(--s2); }
+/* ---------- Projektansicht: Ziehen, Konflikte ---------- */
 .drag-handle {
   flex: none; align-self: stretch; display: grid; place-items: center; width: 2.25rem; margin-right: -0.25rem;
   border: 0; background: none; color: var(--muted); cursor: grab; touch-action: none; border-radius: 6px;
@@ -544,8 +537,6 @@ html.voice-off .fab-mic { display: none; }
 .sortable.is-sorting { user-select: none; -webkit-user-select: none; }
 .conflict-btn { flex: none; border: 0; background: none; padding: 0.35rem; color: var(--soon); cursor: pointer; display: grid; place-items: center; border-radius: 6px; }
 .conflict-btn:hover { background: var(--soon-soft); }
-.row-eyebrow.up-next { color: var(--ok); }
-.rows .row.is-up-next { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
 .conflict-list { margin: 0; padding-left: 1.2rem; }
 .conflict-list .muted { color: var(--muted); }
 

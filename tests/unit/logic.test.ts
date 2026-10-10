@@ -25,6 +25,17 @@ describe('Projektansicht', () => {
   });
 });
 
+describe('Bearbeiten speichert nur Geändertes (0.10)', () => {
+  test('nur Felder mit anderem Wert; leer und null gelten als gleich', () => {
+    const before = { title: 'A', notes: '', list: 'trash', context: null, due: '2026-01-01', waitingFor: null } as any;
+    const form = { title: 'B', notes: '', list: 'trash', context: null, due: '2026-01-01', waitingFor: null } as any;
+    expect(L.changedFields(before, form)).toEqual({ title: 'B' });
+    expect(L.changedFields(before, { ...form, title: 'A' })).toEqual({});
+    expect(L.changedFields({ ...before, waitingFor: undefined }, { waitingFor: null } as any)).toEqual({});
+    expect(L.changedFields(before, { due: null } as any)).toEqual({ due: null });
+  });
+});
+
 describe('Datum', () => {
   test('isoDate formatiert lokal als JJJJ-MM-TT', () => {
     expect(L.isoDate(new Date(2026, 0, 5))).toBe('2026-01-05');
@@ -135,16 +146,15 @@ describe('Listen (Abfragen)', () => {
     S.trashItem(a);
     expect(L.Q.trash().map((i) => i.id)).toEqual([a]);
   });
-  test('Fristen: offene Aufgaben und Projekte, Dringendes gezählt', () => {
+  test('Fristen: nur offene Aufgaben, keine Projekte; Dringendes gezählt', () => {
     S.capture('überfällig', { list: 'next', due: d(-2) });
     S.capture('heute', { list: 'waiting', due: T });
     S.capture('bald', { list: 'next', due: d(2) });
     const erledigt = S.capture('erledigt', { list: 'next', due: d(-5) }); S.completeItem(erledigt);
     S.createProject({ title: 'Projekt heute', due: T });
-    S.createProject({ title: 'fertig', status: 'done', due: d(-1) });
+    S.createProject({ title: 'Projekt überfällig', due: d(-1) });
     expect(L.Q.dueItems().length).toBe(3);
-    expect(L.Q.dueProjects().length).toBe(1);
-    expect(L.Q.urgent()).toBe(3);
+    expect(L.Q.urgent()).toBe(2);
   });
   test('Projekte: nach Status und alphabetisch, gelöschte ausgeblendet', () => {
     S.createProject({ title: 'Beta' }); S.createProject({ title: 'Alpha' });

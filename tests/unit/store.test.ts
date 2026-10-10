@@ -77,6 +77,59 @@ describe('Projekte und Kontexte', () => {
   });
 });
 
+describe('Endgültig gelöscht bleibt gelöscht (0.10)', () => {
+  test('spätere Änderung eines anderen Geräts wird ignoriert', async () => {
+    const id = S.capture('Geheim', { list: 'trash', notes: 'PIN' });
+    S.emptyTrash();
+    await S.mergeEvents([ev('x1', Date.now() + 1000, 'item.patch', { id, patch: { title: 'Neuer Titel', list: 'next' } })]);
+    expect(S.state.items.get(id)).toMatchObject({ deleted: true, title: '', notes: '', list: 'trash' });
+  });
+  test('frühere Änderung, die erst später ankommt: Löschen gilt trotzdem (gleiches Ergebnis auf allen Geräten)', async () => {
+    const id = S.capture('Geheim', { list: 'trash' });
+    S.emptyTrash();
+    await S.mergeEvents([ev('x2', 5, 'item.patch', { id, patch: { title: 'Alt' } })]);
+    expect(S.state.items.get(id)).toMatchObject({ deleted: true, title: '' });
+  });
+  test('gelöschtes Projekt: spätere Änderung wird ignoriert', async () => {
+    const p = S.createProject({ title: 'Umzug' });
+    S.deleteProject(p);
+    await S.mergeEvents([ev('x3', Date.now() + 1000, 'project.patch', { id: p, patch: { title: 'Wieder da' } })]);
+    expect(S.state.projects.get(p)).toMatchObject({ deleted: true, title: '' });
+  });
+  test('ausdrückliches Wiederherstellen (früherer Stand) bleibt möglich', async () => {
+    const id = S.capture('Wichtig', { list: 'trash' });
+    S.emptyTrash();
+    await S.mergeEvents([ev('x4', Date.now() + 1000, 'item.patch', { id, patch: { deleted: null, title: 'Wichtig', list: 'next' } })]);
+    expect(S.state.items.get(id)).toMatchObject({ deleted: null, title: 'Wichtig', list: 'next' });
+  });
+});
+
+describe('Projekt löschen (0.10)', () => {
+  test('Projekt und alle seine Aufgaben endgültig: Titel, Notizen, Ziel entfernt; anderes unberührt', () => {
+    const p = S.createProject({ title: 'Umzug', outcome: 'Neue Wohnung bezogen' });
+    const q = S.createProject({ title: 'Anderes' });
+    const a = S.capture('Kisten packen', { list: 'next', projectId: p, notes: 'geheim' });
+    const b = S.capture('Offerte', { list: 'waiting', projectId: p });
+    const c = S.capture('Erledigt im Projekt', { list: 'done', projectId: p });
+    const fremd = S.capture('Gehört zu Anderes', { list: 'next', projectId: q });
+    const frei = S.capture('Ohne Projekt', { list: 'next' });
+    S.deleteProject(p);
+    expect(S.state.projects.get(p)).toMatchObject({ deleted: true, title: '', outcome: '' });
+    for (const id of [a, b, c]) expect(S.state.items.get(id)).toMatchObject({ deleted: true, title: '', notes: '' });
+    expect(S.state.items.get(fremd)!.title).toBe('Gehört zu Anderes');
+    expect(S.state.items.get(fremd)!.deleted).toBeFalsy();
+    expect(S.state.items.get(frei)!.title).toBe('Ohne Projekt');
+    expect(S.state.projects.get(q)!.title).toBe('Anderes');
+  });
+  test('ein Schritt: die Oberfläche wird nur einmal benachrichtigt', () => {
+    const p = S.createProject({ title: 'P' });
+    S.capture('A', { list: 'next', projectId: p }); S.capture('B', { list: 'next', projectId: p });
+    let calls = 0; S.onChange(() => calls++);
+    S.deleteProject(p);
+    expect(calls).toBe(1);
+  });
+});
+
 describe('Ereignisse', () => {
   test('Zeitstempel sind streng aufsteigend, auch bei vielen Änderungen pro Millisekunde', async () => {
     for (let i = 0; i < 50; i++) S.capture(`x${i}`);

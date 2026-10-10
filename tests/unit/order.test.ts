@@ -100,26 +100,16 @@ describe('Konflikte mit Fristen', () => {
   });
 });
 
-describe('Nur die nächste Aufgabe', () => {
-  test('Nächste Schritte zeigt bei schrittweisen Projekten nur den obersten Schritt', () => {
-    const p = S.createProject({ title: 'P' });
-    const q = S.createProject({ title: 'Q' });
-    S.capture('P1', { list: 'next', projectId: p, due: d(5) });
-    const p2 = S.capture('P2', { list: 'next', projectId: p, due: d(6) });
-    S.capture('Q1', { list: 'next', projectId: q });
-    S.capture('Q2', { list: 'next', projectId: q });
-    S.capture('frei', { list: 'next' });
-    S.patchProject(p, { sequential: true });
-    S.moveProjectItem(p, p2, 0);
-    expect(titles(L.Q.next()).sort()).toEqual(['P2', 'Q1', 'Q2', 'frei']);
-  });
-  test('erledigt: der nächste rückt nach; ausgeblendete („Erst ab“) werden übersprungen', () => {
-    const p = S.createProject({ title: 'P', sequential: true });
-    const a = S.capture('A', { list: 'next', projectId: p, due: d(1) });
-    S.capture('B', { list: 'next', projectId: p, due: d(2), tickler: d(4) });
-    S.capture('C', { list: 'next', projectId: p, due: d(3) });
-    expect(titles(L.Q.next())).toEqual(['A']);
-    S.completeItem(a);
-    expect(titles(L.Q.next())).toEqual(['C']);
+describe('„Nur die nächste“ (0.8, ab 0.10 entfernt)', () => {
+  test('gespeicherte Einstellung wird ignoriert: alle Schritte bleiben in Nächste Schritte', async () => {
+    // Daten aus 0.8/0.9: Projekt mit sequential = true
+    const t = Date.now();
+    await S.mergeEvents([
+      { id: 's1', ts: t, device: 'alt', type: 'project.create', data: { id: 'p', title: 'P', status: 'active', sequential: true } },
+      { id: 's2', ts: t + 1, device: 'alt', type: 'item.create', data: { id: 'a', title: 'A', list: 'next', projectId: 'p', order: 1000 } },
+      { id: 's3', ts: t + 2, device: 'alt', type: 'item.create', data: { id: 'b', title: 'B', list: 'next', projectId: 'p', order: 2000 } },
+    ]);
+    expect(titles(L.Q.next()).sort()).toEqual(['A', 'B']);
+    expect((S.state.projects.get('p') as any).sequential).toBe(true); // Feld bleibt erhalten
   });
 });

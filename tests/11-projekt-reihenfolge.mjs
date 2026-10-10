@@ -109,21 +109,16 @@ await rowOf('Velomechaniker').locator('.drag-handle').focus();
 await page.keyboard.press('ArrowDown');
 ok((await order()).join(',') === 'Licht,Velomechaniker,Kette', 'Pfeiltaste verschiebt');
 
-// 6. Nur die nächste: in Nächste Schritte nur der oberste Schritt des Projekts
-await page.locator('[data-action=project-seq][data-seq="1"]').tap();
-ok((await page.locator('[data-sortable] .row').first().locator('.up-next').count()) === 1, 'Oberster Schritt als „Als Nächstes“ markiert');
+// 6. Seit 0.10 keine Wahl „Alle / Nur die nächste“ mehr: alle Schritte in Nächste Schritte
+ok((await page.locator('[data-action=project-seq], .up-next').count()) === 0, 'Keine Wahl „Alle / Nur die nächste“');
 await go('#next'); await page.waitForSelector('#main .row');
 const nextTitles = await page.locator('#main .row-title').allInnerTexts();
-ok(nextTitles.some((t) => t.includes('Licht')) && !nextTitles.some((t) => t.includes('Velomechaniker')) && !nextTitles.some((t) => t.includes('Kette')), 'Nächste Schritte: nur der oberste Schritt des Projekts');
-ok(nextTitles.some((t) => t.includes('Zahnarzt')), 'Andere Aufgaben bleiben sichtbar');
-await rowOf('Licht montieren').locator('.check').tap();
-await page.waitForTimeout(400);
-const after = await page.locator('#main .row-title').allInnerTexts();
-ok(after.some((t) => t.includes('Velomechaniker')), 'Nach dem Erledigen rückt der nächste Schritt nach');
-await go('#projects'); await page.locator('#main .row-title', { hasText: 'Velo winterfit' }).tap(); await page.waitForSelector('[data-sortable]');
-await page.locator('[data-action=project-seq][data-seq="0"]').tap();
-await go('#next'); await page.waitForSelector('#main .row');
-ok((await page.locator('#main .row-title', { hasText: 'Kette' }).count()) === 1, 'Alle: wieder alle Schritte');
+ok(['Licht', 'Velomechaniker', 'Kette'].every((w) => nextTitles.some((t) => t.includes(w))), 'Nächste Schritte: alle Schritte des Projekts');
+
+// 7. Fristen: nur Aufgaben, keine Projekte (Velo hat eine Projekt-Frist)
+await go('#due'); await page.waitForSelector('#main .row');
+ok((await page.locator('#main .row-title', { hasText: 'Velo winterfit' }).count()) === 0, 'Fristen: kein Projekt');
+ok((await page.locator('#main .row-icon').count()) === 0, 'Fristen: keine Projekt-Zeilen');
 
 // Handy: kein horizontales Scrollen in der Projektansicht
 const phone = harden(await (await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage());

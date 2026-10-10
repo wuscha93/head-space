@@ -84,27 +84,38 @@ await page.evaluate(() => { const b = document.querySelector('#main li.row.swipe
 await page.waitForTimeout(100);
 ok((await page.locator('#main .row-title', { hasText: quickTitle }).count()) === 0, 'Schneller Tipp auf Löschen direkt nach dem Wischen wird ausgeführt');
 
-// 4. Löschen: sofort, ohne Rückgängig
+// 4. Löschen (0.10): in den Papierkorb, 3 Sekunden Rückgängig
 const countBefore = await page.locator('#main li.row').count();
 await swipe('#main li.row:nth-child(1) .row-inner', -140);
 await page.locator('#main li.row.swipe-open .swipe-del').tap(); // echtes Tippen mit dem Finger
 await page.waitForTimeout(200);
 ok((await page.locator('#main .row-title', { hasText: title }).count()) === 0, `Gelöscht: „${title}“`);
-ok(!(await page.locator('#undo').evaluate((e) => e.classList.contains('show'))), 'Kein Rückgängig');
-ok((await page.locator('#toast').innerText()).includes('Gelöscht'), 'Hinweis „Gelöscht“');
+ok(await page.locator('#undo.show').isVisible(), 'Rückgängig-Leiste erscheint');
+ok((await page.locator('#undo').innerText()).includes('Gelöscht'), 'Hinweis „Gelöscht“');
+await page.locator('[data-action=undo]').tap();
+await page.waitForTimeout(200);
+ok((await page.locator('#main .row-title', { hasText: title }).count()) === 1, 'Rückgängig holt die Aufgabe zurück');
+// nochmals löschen und 3 Sekunden verstreichen lassen
+await swipe('#main li.row:nth-child(1) .row-inner', -140);
+await page.locator('#main li.row.swipe-open .swipe-del').tap();
+await page.waitForTimeout(3400);
+ok(!(await page.locator('#undo').evaluate((e) => e.classList.contains('show'))), 'Leiste nach 3 Sekunden weg');
 await page.reload(); await page.waitForSelector('#main h1');
 ok((await page.locator('#main .row-title', { hasText: title }).count()) === 0, 'Bleibt gelöscht nach Neuladen');
 ok((await page.locator('#main li.row').count()) === countBefore - 1, 'Andere Einträge unberührt');
+await page.goto(URL + '#done'); await page.waitForSelector('#main h1');
+ok((await page.locator('#main li.row', { hasText: title }).count()) === 1, 'Liegt im Papierkorb');
+ok((await page.locator('#main li.row', { hasText: title }).locator('.swipe-del').count()) === 0, 'Im Papierkorb kein Wischen');
+const trashId = await page.locator('#main li.row', { hasText: title }).getAttribute('data-row');
+await swipe(`#main li.row[data-row="${trashId}"] .row-inner`, -140);
+ok((await page.locator('#main li.row.swipe-open').count()) === 0, 'Wischen im Papierkorb bewirkt nichts');
 
-// 5. Projekt löschen: Aufgaben bleiben als Einzelaufgaben
+// 5. Projekte lassen sich nicht wegwischen
 await page.goto(URL + '#projects'); await page.waitForSelector('#main li.row');
+ok((await page.locator('#main li.row .swipe-del').count()) === 0, 'Projekte ohne Löschen-Knopf');
 await swipe('#main li.row:nth-child(1) .row-inner', -140);
-await page.locator('#main li.row.swipe-open .swipe-del').tap(); // echtes Tippen mit dem Finger
-await page.waitForTimeout(200);
-ok((await page.locator('#main li.row').count()) === 0, 'Projekt gelöscht');
-await page.goto(URL + '#next'); await page.waitForSelector('#main li.row');
-const step = page.locator('#main li.row', { has: page.locator('.row-title', { hasText: 'Velomechaniker' }) });
-ok((await step.count()) === 1 && (await step.locator('.row-eyebrow').count()) === 0, 'Aufgabe des Projekts bleibt, ohne Projekt');
+ok((await page.locator('#main li.row.swipe-open').count()) === 0, 'Wischen auf einem Projekt bewirkt nichts');
+ok((await page.locator('#main li.row').count()) >= 1, 'Projekt bleibt');
 
 // 6. Spracheingabe: Offline startet, nimmt aber nichts auf → fragt automatisch nach Online
 await page.goto(URL + '#inbox'); await page.waitForSelector('#capture-input');

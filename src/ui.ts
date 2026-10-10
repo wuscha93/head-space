@@ -14,7 +14,7 @@ declare const __APP_BUILD__: string;
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '';
 import type { Item, ListName, Project } from './types';
-import { restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, orderConflicts, project, projColor, today, toClarify, type DueState } from './logic';
+import { changedFields, restorePoints, Q, addDays, all, daysSince, dueState, esc, fmtDate, fmtTs, initials, isOpen, orderConflicts, project, projColor, today, toClarify, type DueState } from './logic';
 import { ctxBadge, ctxLabel, ctxWithName, itemSymbol, noneBadge, waitBadge } from './icons';
 export { today } from './logic';
 
@@ -59,7 +59,7 @@ const NAV: { group: string; items: { view: View; label: string; count?: () => nu
     group: 'Tun',
     items: [
       { view: 'next', label: 'Nächste Schritte', count: () => Q.next().length },
-      { view: 'due', label: 'Fristen', count: () => Q.dueItems().length + Q.dueProjects().length, warn: Q.urgent },
+      { view: 'due', label: 'Fristen', count: () => Q.dueItems().length, warn: Q.urgent },
       { view: 'projects', label: 'Projekte', count: () => Q.projects('active').length, warn: () => Q.projects('active').filter(Q.stalled).length },
       { view: 'waiting', label: 'Warten auf', count: () => Q.waiting().length, warn: () => Q.waiting().filter((i) => i.tickler && i.tickler <= today()).length },
     ],
@@ -182,16 +182,17 @@ function meta(it: Item, opts: { project?: boolean; list?: boolean } = {}): strin
 
 /**
  * Karte mit Wisch-Geste: Inhalt liegt in .row-inner, dahinter der Löschen-Knopf.
- * Nach links wischen legt den Knopf frei; Tippen löscht endgültig.
+ * Nach links wischen legt den Knopf frei; Tippen legt die Aufgabe in den Papierkorb (mit Rückgängig).
+ * Projekte und Einträge im Papierkorb haben keinen Löschen-Knopf (swipe = false).
  */
-function card(cls: string, rowId: string, kind: 'item' | 'project', inner: string): string {
+function card(cls: string, rowId: string, kind: 'item' | 'project', inner: string, swipe = true): string {
   return `<li class="${cls}" data-row="${rowId}">
     <div class="row-inner">${inner}</div>
-    <button type="button" class="swipe-del" data-action="swipe-delete" data-kind="${kind}" data-id="${rowId}" tabindex="-1" aria-hidden="true">Löschen</button>
+    ${swipe ? `<button type="button" class="swipe-del" data-action="swipe-delete" data-kind="${kind}" data-id="${rowId}" tabindex="-1" aria-hidden="true">Löschen</button>` : ''}
   </li>`;
 }
 
-type RowOpts = { check?: boolean; clarify?: boolean; project?: boolean; list?: boolean; restore?: boolean; drag?: boolean; conflict?: boolean; upNext?: boolean };
+type RowOpts = { check?: boolean; clarify?: boolean; project?: boolean; list?: boolean; restore?: boolean; drag?: boolean; conflict?: boolean };
 function row(it: Item, opts: RowOpts = {}): string {
   const lead = opts.check
     ? `<button class="check" data-action="complete" data-id="${it.id}" aria-label="Als erledigt markieren"></button>`
@@ -199,11 +200,11 @@ function row(it: Item, opts: RowOpts = {}): string {
       ? `<button class="check is-done" data-action="restore" data-id="${it.id}" aria-label="Wiederherstellen" title="Wiederherstellen"></button>`
       : '';
   const p = opts.project !== false ? project(it.projectId) : undefined;
-  return card(`row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}${opts.upNext ? ' is-up-next' : ''}`, it.id, 'item', `
+  return card(`row ${projColor(p?.id)}${opts.restore ? ' is-done' : ''}`, it.id, 'item', `
     ${lead}
     <span class="row-badge" aria-hidden="true">${p ? esc(initials(p.title)) : ''}</span>
     <div class="row-main" data-action="edit" data-id="${it.id}">
-      ${p ? `<span class="row-eyebrow">${esc(p.title)}</span>` : ''}${opts.upNext ? '<span class="row-eyebrow up-next">Als Nächstes</span>' : ''}
+      ${p ? `<span class="row-eyebrow">${esc(p.title)}</span>` : ''}
       <button type="button" class="row-title" data-action="edit" data-id="${it.id}">${esc(it.title) || '<em>Ohne Titel</em>'}</button>
       ${meta(it, opts)}
       ${it.list === 'reference' && it.notes ? `<span class="row-notes">${esc(it.notes.slice(0, 160))}</span>` : ''}
@@ -214,6 +215,7 @@ function row(it: Item, opts: RowOpts = {}): string {
 }
 
 /** Zeile für ein Projekt: Fällig | Status | Ergebnis */
+/** Projekte lassen sich nicht wegwischen; Löschen nur in der Projektansicht (mit Bestätigung). */
 function projectRow(p: Project, status: string, icon = false): string {
   return card(`row ${projColor(p.id)}`, p.id, 'project', `
     ${icon ? '<span class="row-icon" aria-hidden="true">P</span>' : ''}
@@ -222,7 +224,7 @@ function projectRow(p: Project, status: string, icon = false): string {
       <div class="row-meta proj-meta">
         ${dueSlot('project', p.id, p.due)}<span class="slot slot-status">${status}</span><span class="slot slot-rest">${p.outcome ? `<span class="chip muted">${esc(p.outcome.slice(0, 80))}</span>` : ''}</span>
       </div>
-    </div>`);
+    </div>`, false);
 }
 
 const MIC_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
@@ -310,8 +312,8 @@ function viewNext(): string {
 
 function viewDue(): string {
   const its = Q.dueItems();
-  const ps = Q.dueProjects();
-  if (!its.length && !ps.length) {
+  // nur Aufgaben; Projekte mit Frist stehen in der Projektliste (0.10)
+  if (!its.length) {
     return `${head('Fristen', 'Alles mit Fälligkeitsdatum, nach Dringlichkeit sortiert.')}
       ${empty('Keine Fristen.', 'Setz beim Klären oder Bearbeiten ein Datum unter „Fällig am“, dann erscheint der Eintrag hier.')}`;
   }
@@ -321,13 +323,11 @@ function viewDue(): string {
     ['Nächste 7 Tage', (s) => s === 'soon' || s === 'week'],
     ['Später', (s) => s === 'later'],
   ];
-  const projRow = (p: Project) => projectRow(p, `<span class="chip">Projekt${p.status === 'someday' ? ' · Irgendwann' : ''}</span>`, true);
   const body = GROUPS.map(([label, match]) => {
     const gi = its.filter((i) => match(dueState(i.due!)));
-    const gp = ps.filter((p) => match(dueState(p.due!)));
-    if (!gi.length && !gp.length) return '';
-    const rows = [...gp.map(projRow), ...gi.map((i) => row(i, { check: i.list === 'next' || i.list === 'waiting', list: true }))];
-    return `<h2 class="section">${label} <span class="num">${gi.length + gp.length}</span></h2><ul class="rows">${rows.join('')}</ul>`;
+    if (!gi.length) return '';
+    const rows = gi.map((i) => row(i, { check: i.list === 'next' || i.list === 'waiting', list: true }));
+    return `<h2 class="section">${label} <span class="num">${gi.length}</span></h2><ul class="rows">${rows.join('')}</ul>`;
   }).join('');
   return `${head('Fristen', 'Alles mit Fälligkeitsdatum, nach Dringlichkeit sortiert. Harte Termine gehören laut Buch weiterhin in den Kalender.')}${body}`;
 }
@@ -378,7 +378,7 @@ function viewProject(id: string): string {
       <select id="step-ctx" name="context">${contextOptions(null)}</select>
       <button class="btn primary" type="submit">Hinzufügen</button>
     </form>` : ''}
-    ${next.length ? `<div class="section-row"><h2 class="section">Nächste Schritte</h2>${p.status === 'active' ? seqToggle(p) : ''}</div>${stepList(p, next)}` : ''}
+    ${next.length ? `<h2 class="section">Nächste Schritte</h2>${stepList(p, next)}` : ''}
     ${waiting.length ? `<h2 class="section">Warten auf</h2>${list(waiting, { check: true, project: false })}` : ''}
     ${other.length ? `<h2 class="section">Weiteres</h2>${list(other, { project: false, list: true })}` : ''}
     ${done.length ? `<h2 class="section">Erledigt</h2>${list(done, { restore: true, project: false })}` : ''}
@@ -387,22 +387,15 @@ function viewProject(id: string): string {
       ${p.status === 'active' ? `<button class="btn" data-action="project-status" data-id="${p.id}" data-status="someday">Auf Irgendwann verschieben</button>
         <button class="btn" data-action="project-status" data-id="${p.id}" data-status="done">Abschliessen</button>` : ''}
       ${p.status !== 'active' ? `<button class="btn" data-action="project-status" data-id="${p.id}" data-status="active">Aktivieren</button>` : ''}
+      <button class="btn danger" data-action="delete-project" data-id="${p.id}">Projekt löschen</button>
     </div>`;
-}
-
-/** Wahl: in „Nächste Schritte“ alle Schritte oder nur den obersten zeigen */
-function seqToggle(p: Project): string {
-  const b = (seq: boolean, label: string) =>
-    `<button type="button" class="seg${!!p.sequential === seq ? ' is-active' : ''}" data-action="project-seq" data-id="${p.id}" data-seq="${seq ? 1 : 0}" aria-pressed="${!!p.sequential === seq}">${label}</button>`;
-  return `<div class="segmented" role="group" aria-label="In Nächste Schritte zeigen">${b(false, 'Alle')}${b(true, 'Nur die nächste')}</div>`;
 }
 
 /** Schritte eines Projekts: verschiebbar, mit Warnung bei Konflikten mit Fristen */
 function stepList(p: Project, next: Item[]): string {
   const conflicts = orderConflicts(next);
-  const hint = p.sequential ? '<p class="hint seq-hint">In „Nächste Schritte“ erscheint nur der oberste Schritt. Reihenfolge mit dem Griff ⋮⋮ ändern.</p>' : '';
-  return `${hint}<ul class="rows sortable" data-sortable="${p.id}">${next.map((i, k) => row(i, {
-    check: true, project: false, drag: next.length > 1, conflict: conflicts.has(i.id), upNext: !!p.sequential && k === 0,
+  return `<ul class="rows sortable" data-sortable="${p.id}">${next.map((i) => row(i, {
+    check: true, project: false, drag: next.length > 1, conflict: conflicts.has(i.id),
   })).join('')}</ul>`;
 }
 
@@ -417,7 +410,7 @@ function conflictHtml(id: string): string {
       <div class="sheet-head"><h2>Reihenfolge und Frist passen nicht</h2><button type="button" class="link" data-action="close">Schliessen</button></div>
       <p><strong>${esc(it.title)}</strong> ist am <strong>${fmtDate(it.due ?? null)}</strong> fällig, steht aber hinter ${above.length === 1 ? 'einem Schritt' : `${above.length} Schritten`} mit späterer Frist:</p>
       <ul class="conflict-list">${above.map((o) => `<li>${esc(o.title)} <span class="muted">· fällig ${fmtDate(o.due ?? null)}</span></li>`).join('')}</ul>
-      <p class="hint">Deine Reihenfolge gilt${p.sequential ? ', und in „Nächste Schritte“ erscheint nur der oberste Schritt. Dieser Schritt kommt also womöglich erst nach seiner Frist an die Reihe' : ''}. Zieh ihn nach oben, wenn er zuerst dran ist, oder lass es so, wenn die Reihenfolge Absicht ist.</p>
+      <p class="hint">Deine Reihenfolge gilt. Zieh ihn nach oben, wenn er zuerst dran ist, oder lass es so, wenn die Reihenfolge Absicht ist.</p>
       <div class="actions-row spread">
         <button type="button" class="btn" data-action="order-by-due" data-id="${p.id}">Ganzes Projekt nach Frist sortieren</button>
         <button type="button" class="btn primary" data-action="close">Verstanden</button>
@@ -464,7 +457,7 @@ function viewDone(): string {
     ${trash.length ? `<h2 class="section">Papierkorb <span class="num">${trash.length}</span></h2>
       <ul class="rows">${trash.map((i) => card('row is-done', i.id, 'item', `
         <div class="row-main" data-action="edit" data-id="${i.id}"><button type="button" class="row-title" data-action="edit" data-id="${i.id}">${esc(i.title)}</button></div>
-        <button class="btn small" data-action="restore" data-id="${i.id}">Zurückholen</button>`)).join('')}</ul>
+        <button class="btn small" data-action="restore" data-id="${i.id}">Zurückholen</button>`, false)).join('')}</ul>
       <div class="actions-row"><button class="btn danger" data-action="empty-trash">Papierkorb leeren</button></div>` : ''}`;
 }
 
@@ -1217,6 +1210,8 @@ function onPointerDown(e: PointerEvent) {
   const inner = (e.target as HTMLElement).closest<HTMLElement>('.row-inner');
   if (openInner && openInner !== inner) closeSwipe();
   if (!inner || (e.target as HTMLElement).closest('.due-input')) return;
+  // Projekte und Papierkorb: nicht wegwischbar
+  if (!inner.parentElement?.querySelector(':scope > .swipe-del')) return;
   swipe = { inner, x0: e.clientX, y0: e.clientY, base: inner === openInner ? -SWIPE_W : 0, dx: 0, active: false, pid: e.pointerId };
 }
 
@@ -1635,21 +1630,22 @@ function onClick(e: MouseEvent) {
     }
     case 'undo': { const fn = undoFn; hideUndo(); fn?.(); break; }
     case 'swipe-delete': {
+      // Aufgabe in den Papierkorb, 3 Sekunden Rückgängig (wie „In den Papierkorb“ im Dialog)
       closeSwipe(false);
-      if (el.dataset.kind === 'project') {
-        const pr = project(id);
-        // Aufgaben des Projekts bleiben als Einzelaufgaben erhalten
-        S.batch(() => {
-          for (const it of all()) if (it.projectId === id) S.patchItem(it.id, { projectId: null });
-          S.patchProject(id, { deleted: true, title: '', outcome: '' });
-        });
-        toast(`Projekt gelöscht${pr ? `: ${short(pr.title)}` : ''}.`);
-        if (route.view === 'project' && route.id === id) go('projects');
-      } else {
-        const it = S.state.items.get(id);
-        S.patchItem(id, { deleted: true, title: '', notes: '' });
-        toast(`Gelöscht${it ? `: ${short(it.title)}` : ''}.`);
-      }
+      const it = S.state.items.get(id);
+      if (it && it.list !== 'trash') patchWithUndo(id, { list: 'trash', prevList: it.list }, `Gelöscht: ${short(it.title)}`);
+      break;
+    }
+    case 'delete-project': {
+      const pr = project(id);
+      if (!pr) break;
+      const n = all().filter((i) => i.projectId === id).length;
+      modal = {
+        kind: 'confirm', label: 'Endgültig löschen',
+        text: `Projekt „${pr.title}“${n ? ` und ${n === 1 ? 'seine Aufgabe' : `alle ${n} Aufgaben`}` : ''} endgültig löschen? Das lässt sich nicht rückgängig machen.`,
+        run: () => { S.deleteProject(id); go('projects'); toast(`Projekt gelöscht: ${short(pr.title)}.`); },
+      };
+      renderModal();
       break;
     }
     case 'due-pick': openDuePicker(el); break;
@@ -1663,12 +1659,6 @@ function onClick(e: MouseEvent) {
     case 'noop': break;
     case 'conflict': modal = { kind: 'conflict', id: el.dataset.id! }; renderModal(); break;
     case 'order-by-due': S.resetProjectOrder(el.dataset.id!); modal = null; renderModal(); toast('Nach Frist sortiert.'); break;
-    case 'project-seq': {
-      const seq = el.dataset.seq === '1';
-      S.patchProject(el.dataset.id!, { sequential: seq });
-      toast(seq ? 'In „Nächste Schritte“ erscheint nur noch der oberste Schritt.' : 'In „Nächste Schritte“ erscheinen alle Schritte.');
-      break;
-    }
     case 'due-quick':
     case 'due-clear':
       if (modal?.kind === 'due') {
@@ -1952,12 +1942,14 @@ async function onSubmit(e: SubmitEvent) {
       const it = S.state.items.get(id);
       if (!it) return;
       const list = val(form, 'list') as ListName;
-      const patch: Partial<Item> = {
+      // nur speichern, was sich geändert hat (Sync: andere Geräte können inzwischen anderes geändert haben)
+      const patch: Partial<Item> = changedFields(it, {
         title: val(form, 'title'), notes: (new FormData(form).get('notes') as string ?? '').trim(), list,
         context: val(form, 'context') || null, projectId: val(form, 'projectId') || null,
         waitingFor: val(form, 'waitingFor') || null, tickler: val(form, 'tickler') || null, due: val(form, 'due') || null,
-      };
+      });
       modal = null; renderModal();
+      if (!Object.keys(patch).length) { toast('Keine Änderungen.'); break; }
       if (list === 'done' && it.list !== 'done') {
         delete patch.list;
         completeWithUndo(id, patch);
@@ -1977,7 +1969,9 @@ async function onSubmit(e: SubmitEvent) {
       const title = val(form, 'title');
       if (!title) return;
       if (id) {
-        S.patchProject(id, { title, outcome: val(form, 'outcome'), due: val(form, 'due') || null });
+        const pr = project(id);
+        const patch = pr ? changedFields(pr, { title, outcome: val(form, 'outcome'), due: val(form, 'due') || null }) : {};
+        if (Object.keys(patch).length) S.patchProject(id, patch);
         modal = null; renderModal(); toast('Projekt gespeichert.');
       } else {
         let pid = '';

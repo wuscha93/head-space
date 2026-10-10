@@ -49,7 +49,7 @@ export interface Project {
   updated: number;
   completed: number | null;
   deleted?: boolean;
-  /** Schrittweise: in „Nächste Schritte“ nur den obersten Schritt zeigen. Fehlt = alle. Ab 0.8. */
+  /** 0.8–0.9: „Nur die nächste“. Seit 0.10 ohne Wirkung; bleibt nur erhalten (Felder werden nie entfernt). */
   sequential?: boolean;
 }
 

@@ -4,6 +4,7 @@ import * as S from '../../src/store';
 import * as db from '../../src/db';
 import * as Sync from '../../src/sync';
 import * as C from '../../src/crypto';
+import { createHash } from 'node:crypto';
 
 // ---------- Simuliertes GitHub ----------
 const TOKEN = 'github_pat_test';
@@ -13,7 +14,7 @@ let calls: string[];
 let failNext: { status: number; match: string } | null;
 let networkDown: boolean;
 
-const sha = (p: string) => Buffer.from(p).toString('hex').slice(0, 40).padEnd(40, '0');
+const sha = (p: string) => createHash('sha1').update(p).digest('hex'); // wie GitHub: eindeutig je Datei (früher: Präfix des Pfads, gleich bei Paketen eines Geräts)
 const res = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 const realFetch = globalThis.fetch;

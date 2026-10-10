@@ -8,17 +8,19 @@ Installierbare Web-App (PWA) für Android, iPad und Windows. Die Daten liegen au
 
 Neue Versionen landen zuerst in der Test-App und kommen erst nach Freigabe in die Live-App.
 
-## Funktionen (Version 0.9.0)
+## Funktionen (Version 0.10.0)
 
 - **Inbox** mit Schnellerfassung (Plus-Knopf, Taste `N` oder Spracheingabe)
 - **Klär-Dialog** nach dem Ablaufdiagramm des Buchs
 - **Kontexte als Symbole** (Computer, Telefon, Unterwegs, Zuhause, Büro, Besprechung; eigene Kontexte mit Etikett und Namen)
-- **Listen**: Nächste Schritte (Kontext-Filter), Fristen, Projekte, Warten auf, Wiedervorlage, Irgendwann/Vielleicht, Referenz, Erledigt, Papierkorb
-- **Projekte** mit Ziel, Frist und Farbe; Schritte nach Frist sortiert oder per Griff ⋮⋮ selbst geordnet (Warndreieck, wenn die Reihenfolge einer Frist widerspricht); Wahl „Alle“ oder „Nur die nächste“ für die Liste Nächste Schritte; Frist gleich beim Hinzufügen; beim Erledigen des letzten Schritts fragt die App nach dem nächsten
+- **Listen**: Nächste Schritte (Kontext-Filter), Fristen (nur Aufgaben), Projekte, Warten auf, Wiedervorlage, Irgendwann/Vielleicht, Referenz, Erledigt, Papierkorb
+- **Projekte** mit Ziel, Frist und Farbe; Schritte nach Frist sortiert oder per Griff ⋮⋮ selbst geordnet (Warndreieck, wenn die Reihenfolge einer Frist widerspricht); Frist gleich beim Hinzufügen; beim Erledigen des letzten Schritts fragt die App nach dem nächsten
 - **Fälligkeitsdatum** (Fahne) direkt in der Karte, **Wiedervorlage** („Nachfassen“ mit Glocke, „Erst ab“ mit Mond), alle in gleichen Boxen auf einer Linie; im Kontext-Platz Sanduhr für „Warten auf“, Fragezeichen ohne Kontext
 - **Handy**: kompakte Karten (alles in einer Zeile unter dem Titel)
 - **Rückgängig** (3 Sekunden) nach Erledigen, Löschen, Verschieben, Klären und Projektstatus
-- **Wischen zum Löschen**: Karte nach links wischen → „Löschen“ (endgültig, ohne Rückgängig). Aufgaben eines gelöschten Projekts bleiben als Einzelaufgaben.
+- **Wischen zum Löschen**: Karte nach links wischen → „Löschen“ legt die Aufgabe in den Papierkorb (3 Sekunden Rückgängig). Im Papierkorb kein Wischen; endgültig erst mit „Papierkorb leeren“.
+- **Projekt löschen** nur in der Projektansicht, mit Bestätigung: Projekt und alle seine Aufgaben werden endgültig gelöscht.
+- **Sync-Konflikte**: Bearbeiten speichert nur geänderte Felder; endgültig Gelöschtes bleibt auf allen Geräten gelöscht.
 - **Spracheingabe**: vorerst ausgeschaltet (Code bleibt, für spätere Versionen)
 - **Karten-Design** in Solarized, Hell/Dunkel/System umschaltbar
 - **Sync** über ein privates GitHub-Repository, Ende-zu-Ende verschlüsselt

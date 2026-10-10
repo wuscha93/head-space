@@ -109,28 +109,33 @@ export function orderConflicts(items: Item[]): Map<string, Item[]> {
   return out;
 }
 
+/**
+ * Bearbeiten speichert nur, was sich wirklich geändert hat (0.10). So überschreibt eine Änderung
+ * auf einem Gerät nicht unbemerkt andere Felder, die ein anderes Gerät inzwischen geändert hat
+ * (z. B. „in den Papierkorb“). Leer, null und fehlend gelten als gleich.
+ */
+export function changedFields<T extends object>(before: T, patch: Partial<T>): Partial<T> {
+  const norm = (v: unknown) => (v === undefined || v === null || v === '' ? null : v);
+  const out: Partial<T> = {};
+  for (const k of Object.keys(patch) as (keyof T)[]) {
+    if (JSON.stringify(norm(before[k])) !== JSON.stringify(norm(patch[k]))) out[k] = patch[k];
+  }
+  return out;
+}
+
 export const Q = {
   inbox: () => all().filter((i) => i.list === 'inbox').sort(byCreated),
   resurfaced: () => all().filter((i) => i.list === 'someday' && i.tickler && i.tickler <= today()).sort(byCreated),
-  next: () => {
-    const base = all().filter((i) => {
+  next: () =>
+    all().filter((i) => {
       if (i.list !== 'next') return false;
       if (i.tickler && i.tickler > today()) return false;
       const p = project(i.projectId);
       return !p || p.status === 'active';
-    });
-    // Schrittweise Projekte: nur der oberste sichtbare Schritt
-    const first = new Map<string, Item>();
-    for (const i of [...base].sort(byProjectOrder)) {
-      if (i.projectId && project(i.projectId)?.sequential && !first.has(i.projectId)) first.set(i.projectId, i);
-    }
-    return base.filter((i) => !i.projectId || !project(i.projectId)?.sequential || first.get(i.projectId) === i).sort(byDue);
-  },
+    }).sort(byDue),
   dueItems: () => all().filter((i) => i.due && isOpen(i)).sort(byDue),
-  dueProjects: () => [...S.state.projects.values()].filter((p) => !p.deleted && p.due && (p.status === 'active' || p.status === 'someday'))
-    .sort((a, b) => a.due!.localeCompare(b.due!)),
-  /** Überfällig oder heute fällig: braucht Aufmerksamkeit */
-  urgent: () => Q.dueItems().filter((i) => i.due! <= today()).length + Q.dueProjects().filter((p) => p.due! <= today()).length,
+  /** Dringend (Zahl im Menü): überfällige oder heute fällige Aufgaben. Projekte zählen nicht (0.10). */
+  urgent: () => Q.dueItems().filter((i) => i.due! <= today()).length,
   waiting: () => all().filter((i) => i.list === 'waiting').sort((a, b) => (a.tickler ?? '9').localeCompare(b.tickler ?? '9') || byDue(a, b)),
   tickler: () =>
     all().filter((i) => i.tickler && i.tickler > today() && ['next', 'someday', 'waiting', 'reference'].includes(i.list))

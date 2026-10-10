@@ -95,7 +95,7 @@ ok((await page.locator('.due.due-today').count()) === 1, 'Chip „heute fällig�
 ok((await page.locator('.nav-item[data-view=due] .badge.warn').innerText()) === '1', 'Fristen: Warnzähler 1');
 await page.click('[data-view=due]');
 ok((await page.locator('h2.section').allTextContents()).some((t) => t.startsWith('Heute')), 'Fristen: Gruppe Heute');
-ok((await page.locator('.row-icon').count()) === 1, 'Fristen: Projekt mit Frist gelistet');
+ok((await page.locator('.row-icon').count()) === 0, 'Fristen: keine Projekte (seit 0.10 nur Aufgaben)');
 // überfällig per Bearbeiten
 await page.locator('#main .row-main', { hasText: 'Zahnarzt' }).click();
 await page.fill('#e-due', '2026-10-01'); await page.click('form[data-form=edit] button[type=submit]');

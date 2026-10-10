@@ -1,16 +1,25 @@
 import { info, init, recordVersion, whenSaved } from './store';
 import { APP_VERSION, applyTheme, mount, offerUpdate, setAppActions } from './ui';
 import { requestPersistence, setOnBlocked } from './db';
-import { initSync } from './sync';
+import { initSync, syncNow } from './sync';
 import { IS_TEST } from './env';
 import { seedSample } from './sample';
 import { getMeta, setMeta } from './db';
 import { state } from './store';
 
-declare global { interface Window { KF_NO_SW?: boolean; kopfFrei?: { whenSaved: () => Promise<void>; eventCount: () => number } } }
+declare global { interface Window { KF_NO_SW?: boolean; kopfFrei?: { whenSaved: () => Promise<void>; eventCount: () => number; snapshot: () => string; sync: () => Promise<unknown> } } }
 
 // Für Tests und Fehlersuche: warten, bis alles gespeichert ist; Anzahl gespeicherter Änderungen
-window.kopfFrei = { whenSaved, eventCount: () => info.eventCount };
+window.kopfFrei = {
+  whenSaved, eventCount: () => info.eventCount,
+  /** Zustand ohne Zeitstempel, sortiert: zum Vergleich zweier Geräte (Datenkonsistenz) */
+  snapshot: () => JSON.stringify({
+    items: [...state.items.values()].map(({ updated: _u, ...i }) => i).sort((a, b) => a.id.localeCompare(b.id)),
+    projects: [...state.projects.values()].map(({ updated: _u, ...p }) => p).sort((a, b) => a.id.localeCompare(b.id)),
+    contexts: [...state.contexts].sort(),
+  }),
+  sync: () => syncNow(),
+};
 setAppActions({ checkForUpdate: () => checkForUpdate(), repairApp: () => repairApp() });
 
 async function start() {

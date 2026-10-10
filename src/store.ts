@@ -83,6 +83,16 @@ export function normalizeProject(d: Partial<Project> & { id: string }, ts: numbe
   } as Project;
 }
 
+/**
+ * Endgültig Gelöschtes bleibt gelöscht (0.10): Änderungen, die danach eintreffen (z. B. von einem
+ * anderen Gerät, das noch nicht abgeglichen hatte), werden ignoriert. Ausnahme: ausdrückliches
+ * Wiederherstellen (Patch mit deleted = null/false, z. B. „Zurück auf früheren Stand“).
+ * Da alle Geräte die Ereignisse in derselben Reihenfolge abspielen, ist das Ergebnis überall gleich.
+ */
+function ignoreOnDeleted(target: { deleted?: boolean | null }, patch: Record<string, unknown> | undefined): boolean {
+  return !!target.deleted && !(patch && 'deleted' in patch && !patch.deleted);
+}
+
 function apply(e: GtdEvent, st: State = state) {
   try { applyUnsafe(e, st); } catch (err) { console.warn('Ereignis übersprungen', e?.id, err); }
 }
@@ -96,7 +106,7 @@ function applyUnsafe(e: GtdEvent, st: State) {
       break;
     case 'item.patch': {
       const it = st.items.get(d.id);
-      if (it) Object.assign(it, d.patch, { updated: e.ts });
+      if (it && !ignoreOnDeleted(it, d.patch)) Object.assign(it, d.patch, { updated: e.ts });
       break;
     }
     case 'project.create':
@@ -104,7 +114,7 @@ function applyUnsafe(e: GtdEvent, st: State) {
       break;
     case 'project.patch': {
       const p = st.projects.get(d.id);
-      if (p) Object.assign(p, d.patch, { updated: e.ts });
+      if (p && !ignoreOnDeleted(p, d.patch)) Object.assign(p, d.patch, { updated: e.ts });
       break;
     }
     case 'context.add':
@@ -228,6 +238,20 @@ const projectSteps = (pid: string) => Q.projectItems(pid).filter((i) => i.list =
 export function moveProjectItem(pid: string, id: string, toIndex: number) {
   const patches = reorderPatches(projectSteps(pid), id, toIndex);
   batch(() => patches.forEach((p) => patchItem(p.id, { order: p.order })));
+}
+
+/**
+ * Projekt löschen (nur über die Projektansicht, mit Bestätigung): Projekt und alle seine
+ * Aufgaben endgültig. Inhalte werden geleert, damit sie auch im Sync nicht mehr lesbar sind.
+ */
+export function deleteProject(pid: string) {
+  if (!state.projects.has(pid)) return;
+  batch(() => {
+    for (const it of state.items.values()) {
+      if (it.projectId === pid && !it.deleted) patchItem(it.id, { deleted: true, title: '', notes: '' });
+    }
+    patchProject(pid, { deleted: true, title: '', outcome: '' });
+  });
 }
 
 /** Eigene Reihenfolge verwerfen: wieder nach Frist. */
